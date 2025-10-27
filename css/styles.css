@@ -1,129 +1,41 @@
+/* --- 기본 레이아웃/다크테마 --- */
 :root{
-  --bg:#0b0c10;
-  --panel:#121318;
-  --text:#e5e7eb;
-  --muted:#9aa0a6;
-  --accent:#3b82f6;
-  --card:#1b1f2a;
-  --border:#2a2f3a;
+  --bg:#0f1115; --bg-soft:#161a22; --panel:#1d2330; --text:#e6e9ef; --muted:#98a2b3;
+  --accent:#4ea4ff; --card:#1a1f2b; --border:#2a3242;
 }
-
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  font:14px/1.5 system-ui, -apple-system, "Noto Sans KR", Segoe UI, Roboto, sans-serif;
+  margin:0; background:var(--bg); color:var(--text);
+  font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, sans-serif;
+  display:grid; grid-template-columns:260px 1fr; grid-template-rows:auto 1fr;
+  grid-template-areas:"topbar topbar" "sidebar content";
 }
+.topbar{grid-area:topbar; padding:12px 16px; background:var(--bg-soft); border-bottom:1px solid var(--border)}
+.topbar h1{margin:0; font-size:16px; color:#cdd6f4}
 
-.topbar{
-  height:56px; display:flex; align-items:center;
-  padding:0 16px; border-bottom:1px solid var(--border); background:var(--panel);
-}
-.topbar h1{font-size:16px; margin:0}
+.sidebar{grid-area:sidebar; border-right:1px solid var(--border); background:var(--bg-soft); overflow:auto}
+.sidebar-header{padding:12px 14px; color:var(--muted); border-bottom:1px solid var(--border)}
+.report-list{padding:8px 8px 24px}
 
-.sidebar{
-  position:fixed; top:56px; left:0; bottom:0; width:300px;
-  border-right:1px solid var(--border); background:var(--panel); overflow:auto;
-}
-.sidebar-header{padding:12px 14px; border-bottom:1px solid var(--border);}
-.report-list{padding:8px}
-.report-item{
-  padding:10px 12px; border:1px solid transparent; border-radius:8px; margin-bottom:8px;
-  background:transparent; cursor:pointer;
-}
-.report-item:hover{border-color:var(--border); background:#141720}
+.content{grid-area:content; padding:16px 18px 72px; overflow:auto}
 
-.content{
-  margin-left:300px; padding:16px; min-height:calc(100% - 56px);
-}
+/* 카드 */
+.cards{display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:8px; margin-bottom:16px}
+.card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px}
+.card .label{font-size:12px; color:var(--muted)}
+.card .value{font-weight:600; margin-top:2px}
 
-.cards{
-  display:grid; gap:12px; grid-template-columns: repeat(7, minmax(0, 1fr));
-  margin-bottom:16px;
-}
-.card{
-  background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px;
-}
-.card .label{color:var(--muted); font-size:12px}
-.card .value{font-size:18px; margin-top:4px}
+/* 플레이어 박스 */
+.player-box{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px}
 
-.player-box{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
-.video-wrap{position:relative; width:100%; max-width:100%; background:#000; border-radius:8px; overflow:hidden}
-#player{width:100%; height:auto; display:block}
-#overlayVid{
-  position:absolute; left:0; top:0; width:100%; height:auto;
-  pointer-events:none;
-  mix-blend-mode:screen; /* 기본 */
-  opacity:.7;           /* 기본 */
-}
-#overlay{position:absolute; left:0; top:0; pointer-events:none}
-
-.controls{display:flex; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap}
-.toggles label{margin-right:12px; user-select:none}
-.overlay-select select{margin-left:4px}
-#seek{width:100%}
-
-.charts{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
-.charts h2{margin:0 0 8px 0; font-size:16px}
-.charts canvas{width:100%; height:280px}
-
-.raw details{margin:8px 0}
-.raw pre{background:#0f1117; color:#d1d5db; border:1px solid var(--border); padding:12px; border-radius:8px; overflow:auto}
-
-/* 그룹(팀/플레이어) 접힘 스타일 */
-.team-group, .player-group {
-  margin: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #141720;
-}
-
-.team-group > summary, .player-group > summary {
-  cursor: pointer;
-  padding: 8px 10px;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.team-group > summary::-webkit-details-marker,
-.player-group > summary::-webkit-details-marker { display: none; }
-
-.group-title { font-weight: 600; }
-.group-count {
-  font-size: 12px;
-  color: var(--muted);
-  background: #11151f;
-  border: 1px solid var(--border);
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-left: 8px;
-}
-
-.player-group .report-items {
-  padding: 6px 8px 10px 8px;
-}
-.player-group .report-item {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  margin: 6px 0;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.player-group .report-item:hover {
-  border-color: var(--border);
-  background: #0f131c;
-}
-
-/* === 비디오/오버레이 레이어 정렬 === */
+/* === 비디오/오버레이 레이어 정렬(핵심) === */
 .player{
   position:relative;
   width:100%;
-  max-width:1280px; /* 필요 시 조정 */
+  max-width:1280px;
   margin:0 auto;
+  aspect-ratio: 16 / 9; /* 초기 렌더 안정화(메타데이터 로드 후 JS가 재조정 가능) */
 }
 .player > video,
 .player > canvas,
@@ -134,9 +46,24 @@ body{
   height:100%;
 }
 .player > video{
-  object-fit:contain;   /* 좌표 정합을 위해 contain 권장 */
+  object-fit:contain; /* 좌표 정합을 위해 contain 권장 */
   background:#000;
 }
-.player > canvas{
-  pointer-events:none;  /* 클릭 통과 */
+.player > canvas{ pointer-events:none }
+
+/* 타임 라벨 */
+.time-label{
+  position:absolute; left:12px; top:12px;
+  background:rgba(0,0,0,.55); color:#fff; padding:4px 8px; border-radius:6px;
+  font-variant-numeric: tabular-nums;
 }
+
+/* 컨트롤 */
+.controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:10px}
+.controls .overlay-select{display:flex; align-items:center; gap:8px}
+.controls input[type="range"]{width:320px}
+
+/* 차트/원본 보기 */
+.charts{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px}
+.raw details{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:8px}
+.raw summary{cursor:pointer; color:var(--muted)}
