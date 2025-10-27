@@ -1,0 +1,66 @@
+:root{
+  --bg:#0b0c10;
+  --panel:#121318;
+  --text:#e5e7eb;
+  --muted:#9aa0a6;
+  --accent:#3b82f6;
+  --card:#1b1f2a;
+  --border:#2a2f3a;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font:14px/1.5 system-ui, -apple-system, "Noto Sans KR", Segoe UI, Roboto, sans-serif;
+}
+
+.topbar{
+  height:56px; display:flex; align-items:center;
+  padding:0 16px; border-bottom:1px solid var(--border); background:var(--panel);
+}
+.topbar h1{font-size:16px; margin:0}
+
+.sidebar{
+  position:fixed; top:56px; left:0; bottom:0; width:300px;
+  border-right:1px solid var(--border); background:var(--panel); overflow:auto;
+}
+.sidebar-header{padding:12px 14px; border-bottom:1px solid var(--border);}
+.report-list{padding:8px}
+.report-item{
+  padding:10px 12px; border:1px solid transparent; border-radius:8px; margin-bottom:8px;
+  background:transparent; cursor:pointer;
+}
+.report-item:hover{border-color:var(--border); background:#141720}
+
+.content{
+  margin-left:300px; padding:16px; min-height:calc(100% - 56px);
+}
+
+.cards{
+  display:grid; gap:12px; grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom:16px;
+}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px;
+}
+.card .label{color:var(--muted); font-size:12px}
+.card .value{font-size:18px; margin-top:4px}
+
+.player-box{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
+.video-wrap{position:relative; width:100%; max-width:100%; background:#000; border-radius:8px; overflow:hidden}
+#player{width:100%; height:auto; display:block}
+#overlay{position:absolute; left:0; top:0; pointer-events:none}
+
+.controls{display:flex; align-items:center; gap:12px; margin-top:8px}
+.toggles label{margin-right:12px; user-select:none}
+#seek{width:100%}
+
+.charts{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
+.charts h2{margin:0 0 8px 0; font-size:16px}
+.charts canvas{width:100%; height:280px}
+
+.raw details{margin:8px 0}
+.raw pre{background:#0f1117; color:#d1d5db; border:1px solid var(--border); padding:12px; border-radius:8px; overflow:auto}

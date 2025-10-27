@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Report Viewer</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- Chart.js (그래프용) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Report Viewer (Static)</h1>
+  </header>
+
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <strong>Reports</strong>
+    </div>
+    <div id="report-list" class="report-list">로딩 중...</div>
+  </aside>
+
+  <main class="content">
+    <!-- 요약 카드 -->
+    <section id="summary-cards" class="cards">
+      <div class="card"><div class="label">Player</div><div class="value" id="card-player">-</div></div>
+      <div class="card"><div class="label">Report</div><div class="value" id="card-report">-</div></div>
+      <div class="card"><div class="label">Swing</div><div class="value" id="card-swing-type">-</div></div>
+      <div class="card"><div class="label">Separation</div><div class="value" id="card-sep">-</div></div>
+      <div class="card"><div class="label">Stride (cm)</div><div class="value" id="card-stride">-</div></div>
+    </section>
+
+    <!-- 비디오 + 오버레이 + 시킹 -->
+    <section class="player-box">
+      <div class="video-wrap">
+        <video id="player" controls playsinline></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="controls">
+        <div class="toggles">
+          <label><input type="checkbox" data-layer="skel" checked> Skeleton</label>
+          <label><input type="checkbox" data-layer="head" checked> Head trace</label>
+          <label><input type="checkbox" data-layer="path"> Hand path</label>
+        </div>
+        <input id="seek" type="range" min="0" max="1000" value="0" />
+      </div>
+    </section>
+
+    <!-- 그래프 섹션 -->
+    <section class="charts">
+      <h2>Angles</h2>
+      <canvas id="chart-angles"></canvas>
+    </section>
+
+    <!-- 원본 JSON 보기(디버그용) -->
+    <section class="raw">
+      <details>
+        <summary>summary.json</summary>
+        <pre id="raw-summary">-</pre>
+      </details>
+      <details>
+        <summary>series.json</summary>
+        <pre id="raw-series">-</pre>
+      </details>
+    </section>
+  </main>
+
+  <script defer src="js/app.js"></script>
+</body>
+</html>
