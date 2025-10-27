@@ -76,9 +76,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 async function loadPlayers() {
 
-  // [수정] 경로 수정 (./ -> ../)
+  // [수정] 경로 원복 (../ -> ./)
 
-  const players = await fetchJSON("../data/players.json");
+  const players = await fetchJSON("./data/players.json");
 
   const map = {};
 
@@ -166,7 +166,7 @@ function renderReportList(index) {
 
     teamDetails.className = "team-group";
 
-    teamDetails.open = false; // 기본 펼침(원하면 false)
+    teamDetails.open = false; 
 
 
 
@@ -224,8 +224,6 @@ function renderReportList(index) {
 
       ul.className = "report-items";
 
-      // 최신 report_id가 뒤에 날짜가 있으면 그걸 기준으로 역정렬하고 싶다면 여기서 정렬 로직 추가 가능
-
       tp.items.forEach(item => {
 
         const div = document.createElement("div");
@@ -264,9 +262,9 @@ async function loadIndex() {
 
   try {
 
-    // [수정] 경로 수정 (./ -> ../)
+    // [수정] 경로 원복 (../ -> ./)
 
-    const idx = await fetchJSON("../reports/index.json");
+    const idx = await fetchJSON("./reports/index.json");
 
     renderReportList(idx);
 
@@ -290,11 +288,11 @@ async function openReport(playerId, reportId) {
 
   try {
 
-    // [수정] 경로 수정 (./ -> ../)
+    // [수정] 경로 원복 (../ -> ./)
 
-    const summary = await fetchJSON(`../reports/${playerId}/${reportId}/summary.json`);
+    const summary = await fetchJSON(`./reports/${playerId}/${reportId}/summary.json`);
 
-    const series  = await fetchJSON(`../reports/${playerId}/${reportId}/series.json`);
+    const series  = await fetchJSON(`./reports/${playerId}/${reportId}/series.json`);
 
     state.summary = summary;
 
@@ -304,7 +302,7 @@ async function openReport(playerId, reportId) {
 
 
 
-    // 카드
+    // ... (카드 설정 코드는 동일) ...
 
     text("card-player", playerId);
 
@@ -334,29 +332,21 @@ async function openReport(playerId, reportId) {
 
     const video = document.getElementById("player");
 
-    // [수정] 경로 수정 (./ -> ../)
+    // [수정] 경로 원복 (../ -> ./)
 
-    const fallback = `../reports/${playerId}/${reportId}/assets/report_video.mp4`;
+    const fallback = `./reports/${playerId}/${reportId}/assets/report_video.mp4`;
 
-    // [수정] 경로 수정 (summary.assets.report_video가 상대 경로일 경우를 대비해, fallback과 동일한 ../ prefix 적용)
-
-    // 만약 summary.assets.report_video가 절대 경로이거나 이미 올바른 경로를 포함하고 있다면 이 수정은 불필요할 수 있습니다.
-
-    // 하지만 일관성을 위해, summary에 저장된 경로도 `../reports/...` 형태라고 가정하거나,
-
-    // 혹은 summary에 `assets/report_video.mp4` 처럼 asset 폴더 하위 경로만 저장되어 있다고 가정하고 prefix를 붙입니다.
-
-    // 여기서는 후자(assets/...)를 가정하고 prefix를 붙입니다.
+    // [수정] 경로 원복 (summary.assets.report_video가 'assets/...' 형태라고 가정)
 
     const videoPath = summary?.assets?.report_video
 
-      ? `../reports/${playerId}/${reportId}/${summary.assets.report_video}`
+      ? `./reports/${playerId}/${reportId}/${summary.assets.report_video}`
 
       : fallback;
 
     video.src = videoPath;
 
-
+    
 
     state.video = video;
 
@@ -366,15 +356,13 @@ async function openReport(playerId, reportId) {
 
     state.overlayVid = document.getElementById("overlayVid");
 
-    wireOverlayControls(); // select, opacity, blend 이벤트 바인딩
-
-    // 초기 선택 반영
+    wireOverlayControls();
 
     applyOverlaySelection();
 
 
 
-    // 토글(캔버스용 - 추후 실제 좌표 드로잉 연결)
+    // 토글
 
     document.querySelectorAll(".toggles input[type=checkbox]").forEach(chk => {
 
@@ -409,6 +397,8 @@ async function openReport(playerId, reportId) {
 // ===== 오버레이 비디오 컨트롤 =====
 
 function wireOverlayControls() {
+
+  // ... (이 함수 내용은 변경 없음) ...
 
   const sel = document.getElementById("overlaySelect");
 
@@ -456,21 +446,17 @@ function applyOverlaySelection() {
 
   const { playerId, reportId } = state.current;
 
-  // [수정] 경로 수정 (./ -> ../)
+  // [수정] 경로 원복 (../ -> ./)
 
-  vid.src = `../reports/${playerId}/${reportId}/assets/${file}`;
+  vid.src = `./reports/${playerId}/${reportId}/assets/${file}`;
 
   vid.style.display = "block";
-
-  // 플레이어와 동기화 (load 후 currentTime 일치)
 
   vid.onloadedmetadata = () => {
 
     trySyncOverlayVideo();
 
   };
-
-  // 스타일 초기값
 
   const op  = document.getElementById("overlayOpacity");
 
@@ -485,6 +471,8 @@ function applyOverlaySelection() {
 
 
 function trySyncOverlayVideo() {
+
+  // ... (이 함수 내용은 변경 없음) ...
 
   if (!state.video || !state.overlayVid) return;
 
@@ -556,6 +544,8 @@ function setupVideoSync() {
 
     // [수정] 비디오 크기가 확정된 이 시점에 캔버스/오버레이 리사이즈 재호출
 
+    // (이것이 오버레이 크기 불일치 문제의 핵심 수정 사항입니다)
+
     resizeCanvas();
 
   });
@@ -588,11 +578,9 @@ function setupVideoSync() {
 
   function drawOverlayCanvas(tSec) {
 
+    // ... (이 함수 내용은 변경 없음) ...
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 추후: 좌표/스켈레톤 직접 드로잉을 여기에 연결
-
-    // 지금은 자리 표시 + 현재시간
 
     ctx.save();
 
@@ -654,6 +642,8 @@ function setupVideoSync() {
 
 function nearestIndexByTime(labels, tSec) {
 
+  // ... (이 함수 내용은 변경 없음) ...
+
   if (!Array.isArray(labels) || !labels.length) return 0;
 
   let lo = 0, hi = labels.length - 1, best = 0;
@@ -678,6 +668,8 @@ function nearestIndexByTime(labels, tSec) {
 
 function buildCharts(series) {
 
+  // ... (이 함수 내용은 변경 없음) ...
+
   const el = document.getElementById("chart-angles");
 
   const ctx = el.getContext("2d");
@@ -692,8 +684,6 @@ function buildCharts(series) {
 
   if (!series || !series.angles) {
 
-    // 비어있으면 그냥 끝
-
     el.getContext("2d").clearRect(0,0,el.width,el.height);
 
     return;
@@ -707,10 +697,6 @@ function buildCharts(series) {
   const keys = Object.keys(series.angles);
 
   const datasets = [];
-
-  const palette = ["", "", ""]; // Chart.js 기본색 사용(명시색 X)
-
-  // 보여줄 우선순위: separation, shoulder*, pelvis*, opening 등
 
   const priority = ["separation","shoulder","pelvis","opening"];
 
@@ -744,7 +730,7 @@ function buildCharts(series) {
 
     });
 
-    if (datasets.length >= 3) break; // 최대 3개만 (과밀 방지)
+    if (datasets.length >= 3) break; 
 
   }
 
@@ -807,6 +793,8 @@ function buildCharts(series) {
 
 
 function updateChartCursor(tSec) {
+
+  // ... (이 함수 내용은 변경 없음) ...
 
   const chart = state.angleChart;
 
