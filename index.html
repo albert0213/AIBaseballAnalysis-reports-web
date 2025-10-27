@@ -33,11 +33,12 @@
 
     <!-- 비디오 + 오버레이 + 시킹 -->
     <section class="player-box">
-      <div id="player" class="player">
-        <video id="mainVideo" playsinline controls></video>
-        <video id="overlayVid" class="overlay-video" muted></video>
-        <canvas id="overlayCanvas"></canvas>
-        <div id="timeLabel" class="time-label"></div>
+      <div class="video-wrap">
+        <video id="player" controls playsinline></video>
+        <!-- 오버레이 비디오 (겹침) -->
+        <video id="overlayVid" playsinline muted></video>
+        <!-- 캔버스(추후 도형/좌표 오버레이용) -->
+        <canvas id="overlay"></canvas>
       </div>
 
       <div class="controls">
@@ -58,9 +59,7 @@
               <option value="shoulder_hip_rotation.mp4">Shoulder-Hip Rotation</option>
             </select>
           </label>
-          <label style="margin-left:8px;">Opacity
-            <input id="overlayOpacity" type="range" min="0" max="100" value="70">
-          </label>
+          <label style="margin-left:8px;">Opacity <input id="overlayOpacity" type="range" min="0" max="100" value="70"></label>
           <label style="margin-left:8px;">Blend
             <select id="overlayBlend">
               <option value="screen" selected>screen</option>

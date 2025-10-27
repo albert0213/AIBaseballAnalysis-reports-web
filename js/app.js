@@ -1,302 +1,397 @@
-/* =========================================
- * 경로/상수
- * ========================================= */
-const PATHS = {
-  players: new URL('data/players.json', location.href).toString(),
-  index:   new URL('reports/index.json', location.href).toString(),
-  reportBase(playerId, reportId) {
-    // 보고서 폴더 루트
-    const base = new URL(`reports/${playerId}/${reportId}/`, location.href).toString();
-    return {
-      base,
-      main:  base + 'preprocessed_video.mp4',
-      // 드롭다운 value 그대로 쓰기 위해 상대 파일명만 전달할 수도 있습니다.
-      overlay: (fname) => fname ? (base + fname) : ''
-    };
-  }
+// ===== 유틸 =====
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} ${r.status}`);
+  return r.json();
+}
+function text(elId, v) {
+  const el = document.getElementById(elId);
+  if (el) el.textContent = v ?? "-";
+}
+function setRaw(elId, obj) {
+  const el = document.getElementById(elId);
+  if (el) el.textContent = obj ? JSON.stringify(obj, null, 2) : "-";
+}
+
+// ===== 글로벌 상태 =====
+const state = {
+  current: { playerId: null, reportId: null },
+  summary: null,
+  series: null,
+  video: null,
+  overlayVid: null,
+  fps: 30,
+  toggles: { head: true, skel: true, path: false },
+  angleChart: null,
+  playersById: {}, // { "0001": {id,name,team,number,...}, ... }
 };
 
-// 캐시가 말썽일 때 브라우저 캐시를 우회
-const FETCH_OPTS = { cache: 'no-store' };
-
-/* =========================================
- * 공통 DOM
- * ========================================= */
-const video        = document.getElementById('mainVideo');
-const overlayVid   = document.getElementById('overlayVid');
-const canvas       = document.getElementById('overlayCanvas');
-const ctx          = canvas.getContext('2d');
-const timeLabel    = document.getElementById('timeLabel');
-const seek         = document.getElementById('seek');
-const overlaySel   = document.getElementById('overlaySelect');
-const overlayOpacity = document.getElementById('overlayOpacity');
-const overlayBlend = document.getElementById('overlayBlend');
-
-const reportListEl = document.getElementById('report-list');
-
-/* =========================================
- * 유틸: JSON 로드(에러 UI 포함)
- * ========================================= */
-async function fetchJSON(url) {
+// ===== 초기 로드 =====
+window.addEventListener("DOMContentLoaded", async () => {
   try {
-    const res = await fetch(url, FETCH_OPTS);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} @ ${url}`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.error('[fetchJSON] failed:', err);
-    throw err;
+    await loadPlayers();
+  } catch(e) {
+    console.warn("players.json 로드 실패(선수 이름 매핑 없이 진행):", e);
   }
-}
-
-function showSidebarError(msg) {
-  reportListEl.innerHTML = `
-    <div style="color:#ff8c8c; line-height:1.4">
-      ⚠️ 로딩 실패: ${msg}<br/>
-      <small style="color:#bbb">
-        경로 확인: <code>data/players.json</code>, <code>reports/index.json</code><br/>
-        (대소문자/폴더 위치/브랜치 Pages 설정/JSON 문법)
-      </small>
-    </div>
-  `;
-}
-
-/* =========================================
- * 사이즈 정합(비디오 ↔ 캔버스/오버레이)
- * ========================================= */
-function resizeLayersToVideo() {
-  if (!video) return;
-  const rect = video.getBoundingClientRect();
-  const dpr  = window.devicePixelRatio || 1;
-
-  [canvas, overlayVid].forEach(el => {
-    if (!el) return;
-    el.style.width  = rect.width + 'px';
-    el.style.height = rect.height + 'px';
-  });
-
-  const pxW = Math.max(1, Math.round(rect.width  * dpr));
-  const pxH = Math.max(1, Math.round(rect.height * dpr));
-  if (canvas.width !== pxW)  canvas.width  = pxW;
-  if (canvas.height !== pxH) canvas.height = pxH;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
-video?.addEventListener('loadedmetadata', () => {
-  // 원본 비율 고정이 필요하면 아래 주석 해제
-  // document.getElementById('player').style.aspectRatio =
-  //   `${video.videoWidth} / ${video.videoHeight}`;
-  resizeLayersToVideo();
+  await loadIndex();
 });
-window.addEventListener('resize', resizeLayersToVideo);
-document.addEventListener('fullscreenchange', resizeLayersToVideo);
 
-/* =========================================
- * 오버레이 컨트롤/동기화
- * ========================================= */
-function setOverlaySource(urlOrEmpty) {
-  if (!urlOrEmpty) {
-    overlayVid.removeAttribute('src');
-    overlayVid.style.display = 'none';
+async function loadPlayers() {
+  const players = await fetchJSON("./data/players.json");
+  const map = {};
+  for (const p of players) map[p.id] = p;
+  state.playersById = map;
+}
+
+function playerLabel(id) {
+  const p = state.playersById[id];
+  if (!p) return id;
+  const teamNum = p.team ? `${p.team} #${p.number}` : `#${p.number}`;
+  return `${p.name} (${teamNum})`;
+}
+
+// ===== 목록 렌더 =====
+function renderReportList(index) {
+  const list = document.getElementById("report-list");
+  list.innerHTML = "";
+  if (!index || !index.length) {
+    list.innerHTML = "<em>reports/index.json에 항목이 없습니다.</em>";
     return;
   }
-  overlayVid.src = urlOrEmpty;
-  overlayVid.style.display = '';
-  overlayVid.currentTime = video.currentTime || 0;
-  if (!video.paused) overlayVid.play().catch(()=>{});
-}
 
-// 초기값 반영
-overlayVid.style.opacity = String((Number(overlayOpacity?.value ?? 70))/100);
-overlayVid.style.mixBlendMode = overlayBlend?.value || 'screen';
-
-overlayOpacity?.addEventListener('input', e => {
-  overlayVid.style.opacity = String((Number(e.target.value ?? 70))/100);
-});
-overlayBlend?.addEventListener('change', e => {
-  overlayVid.style.mixBlendMode = e.target.value || 'normal';
-});
-overlaySel?.addEventListener('change', () => {
-  // 현재 선택된 리포트 컨텍스트가 있다면 그 경로에 맞춰 세팅
-  if (CURRENT && CURRENT.paths) {
-    setOverlaySource(CURRENT.paths.overlay(overlaySel.value));
-  }
-});
-
-/* =========================================
- * 시킹 동기화
- * ========================================= */
-seek?.addEventListener('input', () => {
-  if (!video.duration || !isFinite(video.duration)) return;
-  const ratio = Number(seek.value) / Number(seek.max || 1000);
-  video.currentTime = ratio * video.duration;
-  overlayVid.currentTime = video.currentTime;
-});
-function updateSeekAndLabel() {
-  if (video.duration && isFinite(video.duration)) {
-    const ratio = video.currentTime / video.duration;
-    seek.value = Math.round(ratio * Number(seek.max || 1000));
-    timeLabel.textContent = `t = ${video.currentTime.toFixed(2)}s`;
-  } else {
-    seek.value = 0;
-    timeLabel.textContent = '';
-  }
-}
-video.addEventListener('timeupdate', () => {
-  if (Math.abs((overlayVid.currentTime || 0) - video.currentTime) > 0.05) {
-    overlayVid.currentTime = video.currentTime;
-  }
-  updateSeekAndLabel();
-});
-video.addEventListener('play',  () => overlayVid.play().catch(()=>{}));
-video.addEventListener('pause', () => overlayVid.pause());
-
-/* =========================================
- * 사이드바: 리포트 트리 렌더
- * ========================================= */
-let CURRENT = null; // { playerId, reportId, paths }
-
-function renderReportTree(indexData, playersMap) {
-  // index.json 예상 형태 여러 가지를 허용:
-  // 1) { "reports": [ {player_id, report_id, date?, ...}, ... ] }
-  // 2) [ {player_id, report_id, ...}, ... ]
-  // 3) { "<player_id>": ["<report_id>", ...], ... }
-  let entries = [];
-  if (Array.isArray(indexData)) {
-    entries = indexData;
-  } else if (Array.isArray(indexData.reports)) {
-    entries = indexData.reports;
-  } else {
-    // object map 형태
-    for (const [pid, arr] of Object.entries(indexData || {})) {
-      if (Array.isArray(arr)) {
-        for (const rid of arr) entries.push({ player_id: pid, report_id: rid });
-      }
+  // 1) 팀 → 선수 → 리포트 구조 만들기
+  const teams = {}; // { teamName: { players: { playerId: { player, items: [] } } } }
+  for (const item of index) {
+    const pid = item.player_id;
+    const p = state.playersById[pid];
+    const teamName = p?.team || "팀 미지정";
+    if (!teams[teamName]) teams[teamName] = { players: {} };
+    if (!teams[teamName].players[pid]) {
+      teams[teamName].players[pid] = { player: p || { id: pid, name: pid, number: "-", team: teamName }, items: [] };
     }
+    teams[teamName].players[pid].items.push(item);
   }
 
-  // players.json은 { "<player_id>": { name, team, number, ... }, ... } 형태 가정
-  // 혹은 players 배열일 수도 있으니 보완
-  const playersById = (() => {
-    if (!playersMap) return {};
-    if (Array.isArray(playersMap)) {
-      const obj = {};
-      for (const p of playersMap) {
-        if (p && (p.player_id || p.id)) {
-          obj[p.player_id || p.id] = p;
+  // 팀명 정렬(한글/영문 혼합 대비)
+  const teamNames = Object.keys(teams).sort((a,b)=> a.localeCompare(b));
+  for (const tName of teamNames) {
+    const team = teams[tName];
+    const teamPlayers = Object.values(team.players);
+
+    // 팀 섹션(details)
+    const teamDetails = document.createElement("details");
+    teamDetails.className = "team-group";
+    teamDetails.open = false; // 기본 펼침(원하면 false)
+
+    const teamSummary = document.createElement("summary");
+    const teamCount = teamPlayers.reduce((sum, tp) => sum + tp.items.length, 0);
+    teamSummary.innerHTML = `<span class="group-title">🏷️ ${tName}</span><span class="group-count">${teamCount}</span>`;
+    teamDetails.appendChild(teamSummary);
+
+    // 2) 선수별 정렬(이름 → 등번호)
+    teamPlayers.sort((a,b)=>{
+      const an = a.player?.name || a.player?.id || "";
+      const bn = b.player?.name || b.player?.id || "";
+      const cmp = an.localeCompare(bn, "ko");
+      if (cmp !== 0) return cmp;
+      return (a.player?.number ?? 1e9) - (b.player?.number ?? 1e9);
+    });
+
+    for (const tp of teamPlayers) {
+      const p = tp.player;
+      const playerDetails = document.createElement("details");
+      playerDetails.className = "player-group";
+
+      const pLabel = `${p?.name ?? p.id} ${p?.number ? `(#${p.number})` : ""} ${p?.id ? `[${p.id}]` : ""}`;
+      const pSummary = document.createElement("summary");
+      pSummary.innerHTML = `<span class="group-title">👤 ${pLabel}</span><span class="group-count">${tp.items.length}</span>`;
+      playerDetails.appendChild(pSummary);
+
+      // 리포트 항목들
+      const ul = document.createElement("div");
+      ul.className = "report-items";
+      // 최신 report_id가 뒤에 날짜가 있으면 그걸 기준으로 역정렬하고 싶다면 여기서 정렬 로직 추가 가능
+      tp.items.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "report-item";
+        const title = item.title ? ` — ${item.title}` : "";
+        div.textContent = `${item.report_id}${title}`;
+        div.addEventListener("click", () => openReport(item.player_id, item.report_id));
+        ul.appendChild(div);
+      });
+
+      playerDetails.appendChild(ul);
+      teamDetails.appendChild(playerDetails);
+    }
+
+    list.appendChild(teamDetails);
+  }
+}
+
+async function loadIndex() {
+  try {
+    const idx = await fetchJSON("./reports/index.json");
+    renderReportList(idx);
+  } catch (e) {
+    document.getElementById("report-list").innerHTML = `<em>reports/index.json 로드 실패</em>`;
+    console.error(e);
+  }
+}
+
+// ===== 리포트 오픈 =====
+async function openReport(playerId, reportId) {
+  state.current = { playerId, reportId };
+  try {
+    const summary = await fetchJSON(`./reports/${playerId}/${reportId}/summary.json`);
+    const series  = await fetchJSON(`./reports/${playerId}/${reportId}/series.json`);
+    state.summary = summary;
+    state.series  = series;
+    state.fps     = series?.fps ?? 30;
+
+    // 카드
+    text("card-player", playerId);
+    const p = state.playersById[playerId];
+    text("card-player-name", p ? p.name : "-");
+    text("card-team-num", p ? `${p.team || "-"} / #${p.number ?? "-"}` : "-");
+    text("card-report", reportId);
+    text("card-swing-type", summary?.swing_type ?? "-");
+    text("card-sep", summary?.separation_deg ?? summary?.separationAngle ?? "-");
+    text("card-stride", summary?.stride_cm ?? summary?.strideLength ?? "-");
+
+    setRaw("raw-summary", summary);
+    setRaw("raw-series", series);
+
+    // 비디오
+    const video = document.getElementById("player");
+    const fallback = `./reports/${playerId}/${reportId}/assets/report_video.mp4`;
+    video.src = summary?.assets?.report_video || fallback;
+    state.video = video;
+
+    // 오버레이 비디오
+    state.overlayVid = document.getElementById("overlayVid");
+    wireOverlayControls(); // select, opacity, blend 이벤트 바인딩
+    // 초기 선택 반영
+    applyOverlaySelection();
+
+    // 토글(캔버스용 - 추후 실제 좌표 드로잉 연결)
+    document.querySelectorAll(".toggles input[type=checkbox]").forEach(chk => {
+      chk.addEventListener("change", (e) => {
+        const key = e.target.dataset.layer;
+        state.toggles[key] = e.target.checked;
+      });
+    });
+
+    setupVideoSync();
+    buildCharts(series);
+  } catch (e) {
+    console.error("openReport error", e);
+    alert("리포트 로드 실패: 콘솔을 확인하세요.");
+  }
+}
+
+// ===== 오버레이 비디오 컨트롤 =====
+function wireOverlayControls() {
+  const sel = document.getElementById("overlaySelect");
+  const op  = document.getElementById("overlayOpacity");
+  const blend = document.getElementById("overlayBlend");
+  sel.onchange = applyOverlaySelection;
+  op.oninput = () => {
+    const v = Number(op.value);
+    state.overlayVid.style.opacity = (v/100).toFixed(2);
+  };
+  blend.onchange = () => {
+    state.overlayVid.style.mixBlendMode = blend.value;
+  };
+}
+
+function applyOverlaySelection() {
+  const sel = document.getElementById("overlaySelect");
+  const file = sel.value;
+  const vid  = state.overlayVid;
+  if (!file) {
+    vid.removeAttribute("src");
+    vid.style.display = "none";
+    return;
+  }
+  const { playerId, reportId } = state.current;
+  vid.src = `./reports/${playerId}/${reportId}/assets/${file}`;
+  vid.style.display = "block";
+  // 플레이어와 동기화 (load 후 currentTime 일치)
+  vid.onloadedmetadata = () => {
+    trySyncOverlayVideo();
+  };
+  // 스타일 초기값
+  const op  = document.getElementById("overlayOpacity");
+  vid.style.opacity = (Number(op.value)/100).toFixed(2);
+  const blend = document.getElementById("overlayBlend");
+  vid.style.mixBlendMode = blend.value;
+}
+
+function trySyncOverlayVideo() {
+  if (!state.video || !state.overlayVid) return;
+  state.overlayVid.currentTime = state.video.currentTime || 0;
+  if (!state.overlayVid.paused && state.video.paused) state.overlayVid.pause();
+  if (!state.video.paused && state.overlayVid.paused) state.overlayVid.play().catch(()=>{});
+}
+
+// ===== 비디오 동기화 + 캔버스(자리만) =====
+function setupVideoSync() {
+  const video = state.video;
+  const overlayVid = state.overlayVid;
+  const canvas = document.getElementById("overlay");
+  const ctx = canvas.getContext("2d");
+  const seek = document.getElementById("seek");
+
+  // 리사이즈
+  function resizeCanvas() {
+    const rect = video.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // overlay 영상도 같은 크기 배치
+    overlayVid.style.width = rect.width + "px";
+    overlayVid.style.height = rect.height + "px";
+  }
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
+  // 시킹 연결
+  video.addEventListener("loadedmetadata", () => {
+    seek.min = 0; seek.max = Math.floor(video.duration * 1000); seek.value = 0;
+  });
+  seek.addEventListener("input", (e) => {
+    const t = Number(e.target.value)/1000;
+    video.currentTime = t;
+    trySyncOverlayVideo();
+  });
+
+  // 재생/일시정지 연동
+  video.addEventListener("play", () => overlayVid.play().catch(()=>{}));
+  video.addEventListener("pause", () => overlayVid.pause());
+
+  // 타임업데이트 연동
+  const useRVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
+
+  function drawOverlayCanvas(tSec) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 추후: 좌표/스켈레톤 직접 드로잉을 여기에 연결
+    // 지금은 자리 표시 + 현재시간
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(8, 8, 120, 30);
+    ctx.fillStyle = "#fff";
+    ctx.font = "14px system-ui, sans-serif";
+    ctx.fillText(`t = ${tSec.toFixed(2)}s`, 16, 28);
+    ctx.restore();
+
+    seek.value = Math.floor(tSec * 1000);
+    updateChartCursor(tSec);
+  }
+
+  if (useRVFC) {
+    const loop = (now, meta) => {
+      drawOverlayCanvas(meta.mediaTime);
+      trySyncOverlayVideo();
+      video.requestVideoFrameCallback(loop);
+    };
+    video.requestVideoFrameCallback(loop);
+  } else {
+    video.addEventListener("timeupdate", () => {
+      drawOverlayCanvas(video.currentTime);
+      trySyncOverlayVideo();
+    });
+  }
+}
+
+// ===== 그래프 =====
+function nearestIndexByTime(labels, tSec) {
+  if (!Array.isArray(labels) || !labels.length) return 0;
+  let lo = 0, hi = labels.length - 1, best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const v = labels[mid];
+    if (v === tSec) return mid;
+    if (v < tSec) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  return best;
+}
+
+function buildCharts(series) {
+  const el = document.getElementById("chart-angles");
+  const ctx = el.getContext("2d");
+  if (state.angleChart) {
+    state.angleChart.destroy();
+    state.angleChart = null;
+  }
+  if (!series || !series.angles) {
+    // 비어있으면 그냥 끝
+    el.getContext("2d").clearRect(0,0,el.width,el.height);
+    return;
+  }
+
+  const labels = Array.isArray(series.time_s) ? series.time_s : null;
+  const keys = Object.keys(series.angles);
+  const datasets = [];
+  const palette = ["", "", ""]; // Chart.js 기본색 사용(명시색 X)
+  // 보여줄 우선순위: separation, shoulder*, pelvis*, opening 등
+  const priority = ["separation","shoulder","pelvis","opening"];
+  const sortedKeys = keys.sort((a,b)=>{
+    const pa = priority.findIndex(p=>a.includes(p));
+    const pb = priority.findIndex(p=>b.includes(p));
+    return (pa<0?99:pa) - (pb<0?99:pb);
+  });
+
+  for (const k of sortedKeys) {
+    const arr = series.angles[k];
+    if (!Array.isArray(arr) || !arr.length) continue;
+    datasets.push({
+      label: k,
+      data: arr,
+      pointRadius: 0,
+      borderWidth: 2
+    });
+    if (datasets.length >= 3) break; // 최대 3개만 (과밀 방지)
+  }
+
+  if (!datasets.length) return;
+
+  state.angleChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels || datasets[0].map((_, i) => i),
+      datasets
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      parsing: false,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true }, tooltip: { enabled: true } },
+      scales: { x: { display: true }, y: { display: true } },
+      onClick: (evt) => {
+        if (!labels) return;
+        const x = state.angleChart.scales.x.getValueForPixel(evt.x);
+        const idx = Math.max(0, Math.min(labels.length - 1, Math.round(x)));
+        const t = labels[idx];
+        if (typeof t === "number" && state.video) {
+          state.video.currentTime = t;
         }
       }
-      return obj;
     }
-    return playersMap;
-  })();
-
-  // 그룹핑: team -> player -> reports
-  const tree = {};
-  for (const e of entries) {
-    const pid = e.player_id || e.playerId || e.pid;
-    const rid = e.report_id || e.reportId || e.rid;
-    if (!pid || !rid) continue;
-
-    const pinfo = playersById[pid] || {};
-    const team  = pinfo.team || 'Unknown Team';
-    const name  = pinfo.name || pinfo.player_name || pid;
-    const num   = pinfo.number != null ? ` #${pinfo.number}` : '';
-
-    tree[team] ??= {};
-    tree[team][pid] ??= { label: `${name}${num}`, reports: [] };
-    tree[team][pid].reports.push({ rid, date: e.date || '' });
-  }
-
-  // 렌더
-  const frag = document.createDocumentFragment();
-  for (const [team, players] of Object.entries(tree)) {
-    const teamEl = document.createElement('details');
-    teamEl.open = true;
-    const sum = document.createElement('summary');
-    sum.textContent = team;
-    teamEl.appendChild(sum);
-
-    for (const [pid, info] of Object.entries(players)) {
-      const playerEl = document.createElement('details');
-      playerEl.open = true;
-      const ps = document.createElement('summary');
-      ps.textContent = info.label;
-      playerEl.appendChild(ps);
-
-      const ul = document.createElement('ul');
-      ul.style.listStyle = 'none';
-      ul.style.padding = '4px 0 8px 12px';
-      info.reports.sort((a,b)=> String(a.rid).localeCompare(String(b.rid)));
-      for (const r of info.reports) {
-        const li = document.createElement('li');
-        const a  = document.createElement('a');
-        a.href = 'javascript:void(0)';
-        a.textContent = r.rid + (r.date ? `  (${r.date})` : '');
-        a.style.display = 'inline-block';
-        a.style.padding = '2px 0';
-        a.addEventListener('click', () => onSelectReport(pid, r.rid));
-        li.appendChild(a);
-        ul.appendChild(li);
-      }
-      playerEl.appendChild(ul);
-      teamEl.appendChild(playerEl);
-    }
-    frag.appendChild(teamEl);
-  }
-
-  reportListEl.innerHTML = '';
-  reportListEl.appendChild(frag);
-
-  if (!entries.length) {
-    reportListEl.innerHTML = `
-      <div style="color:#e6e9ef">
-        목록이 비어 있습니다.<br/>
-        <small style="color:#98a2b3">reports/index.json 내용을 확인해 주세요.</small>
-      </div>`;
-  }
+  });
 }
 
-/* =========================================
- * 리포트 선택 시 로딩
- * ========================================= */
-function onSelectReport(playerId, reportId) {
-  const paths = PATHS.reportBase(playerId, reportId);
-  CURRENT = { playerId, reportId, paths };
-
-  // 비디오/오버레이 세팅
-  video.src = paths.main;
-
-  // 현재 드롭다운 값에 맞춰 오버레이 세팅
-  const ovFile = overlaySel?.value || '';
-  setOverlaySource(paths.overlay(ovFile));
-
-  // 카드/차트/원본 JSON 등은 필요 시 여기서 추가 로드
-  // 예:
-  // loadSummary(paths.base + 'result/summary.json');
-  // loadSeries(paths.base + 'result/series.json');
+function updateChartCursor(tSec) {
+  const chart = state.angleChart;
+  if (!chart) return;
+  const labels = chart.data.labels;
+  if (!Array.isArray(labels) || !labels.length) return;
+  const idx = nearestIndexByTime(labels, tSec);
+  chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
+  chart.update("none");
 }
-
-/* =========================================
- * 초기화
- * ========================================= */
-async function init() {
-  // 사이드바 프리로더는 index.html에 "로딩 중..."으로 표시되어 있음
-  try {
-    const [players, indexData] = await Promise.all([
-      fetchJSON(PATHS.players),
-      fetchJSON(PATHS.index)
-    ]);
-    renderReportTree(indexData, players);
-  } catch (err) {
-    showSidebarError(err.message || String(err));
-  }
-
-  // 초기 사이즈 정합
-  resizeLayersToVideo();
-
-  // 오버레이 UI 초기값 반영(이미 위에서 적용)
-}
-
-init();
