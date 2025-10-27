@@ -40,7 +40,7 @@ body{
 }
 
 .cards{
-  display:grid; gap:12px; grid-template-columns: repeat(5, minmax(0, 1fr));
+  display:grid; gap:12px; grid-template-columns: repeat(7, minmax(0, 1fr));
   margin-bottom:16px;
 }
 .card{
@@ -52,10 +52,17 @@ body{
 .player-box{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
 .video-wrap{position:relative; width:100%; max-width:100%; background:#000; border-radius:8px; overflow:hidden}
 #player{width:100%; height:auto; display:block}
+#overlayVid{
+  position:absolute; left:0; top:0; width:100%; height:auto;
+  pointer-events:none;
+  mix-blend-mode:screen; /* 기본 */
+  opacity:.7;           /* 기본 */
+}
 #overlay{position:absolute; left:0; top:0; pointer-events:none}
 
-.controls{display:flex; align-items:center; gap:12px; margin-top:8px}
+.controls{display:flex; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap}
 .toggles label{margin-right:12px; user-select:none}
+.overlay-select select{margin-left:4px}
 #seek{width:100%}
 
 .charts{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
@@ -64,3 +71,49 @@ body{
 
 .raw details{margin:8px 0}
 .raw pre{background:#0f1117; color:#d1d5db; border:1px solid var(--border); padding:12px; border-radius:8px; overflow:auto}
+
+/* 그룹(팀/플레이어) 접힘 스타일 */
+.team-group, .player-group {
+  margin: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #141720;
+}
+
+.team-group > summary, .player-group > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.team-group > summary::-webkit-details-marker,
+.player-group > summary::-webkit-details-marker { display: none; }
+
+.group-title { font-weight: 600; }
+.group-count {
+  font-size: 12px;
+  color: var(--muted);
+  background: #11151f;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
+.player-group .report-items {
+  padding: 6px 8px 10px 8px;
+}
+.player-group .report-item {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.player-group .report-item:hover {
+  border-color: var(--border);
+  background: #0f131c;
+}
