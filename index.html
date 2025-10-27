@@ -33,10 +33,12 @@
 
     <!-- 비디오 + 오버레이 + 시킹 -->
     <section class="player-box">
-      <div class="video-wrap">
-        <video id="player" controls playsinline></video>
+      <div class="video-wrap" id="videoWrap">
+        <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
+
         <!-- 오버레이 비디오 (겹침) -->
-        <video id="overlayVid" playsinline muted></video>
+        <video id="overlayVid" playsinline muted preload="metadata" crossorigin="anonymous"></video>
+
         <!-- 캔버스(추후 도형/좌표 오버레이용) -->
         <canvas id="overlay"></canvas>
       </div>

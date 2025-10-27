@@ -1,245 +1,149 @@
 :root{
-
   --bg:#0b0c10;
-
   --panel:#121318;
-
   --text:#e5e7eb;
-
   --muted:#9aa0a6;
-
   --accent:#3b82f6;
-
   --card:#1b1f2a;
-
   --border:#2a2f3a;
-
 }
-
-
 
 *{box-sizing:border-box}
-
 html,body{height:100%}
-
 body{
-
   margin:0;
-
   background:var(--bg);
-
   color:var(--text);
-
   font:14px/1.5 system-ui, -apple-system, "Noto Sans KR", Segoe UI, Roboto, sans-serif;
-
 }
-
-
 
 .topbar{
-
   height:56px; display:flex; align-items:center;
-
   padding:0 16px; border-bottom:1px solid var(--border); background:var(--panel);
-
 }
-
 .topbar h1{font-size:16px; margin:0}
 
-
-
 .sidebar{
-
   position:fixed; top:56px; left:0; bottom:0; width:300px;
-
   border-right:1px solid var(--border); background:var(--panel); overflow:auto;
-
 }
-
 .sidebar-header{padding:12px 14px; border-bottom:1px solid var(--border);}
-
 .report-list{padding:8px}
-
 .report-item{
-
   padding:10px 12px; border:1px solid transparent; border-radius:8px; margin-bottom:8px;
-
   background:transparent; cursor:pointer;
-
 }
-
 .report-item:hover{border-color:var(--border); background:#141720}
 
-
-
 .content{
-
   margin-left:300px; padding:16px; min-height:calc(100% - 56px);
-
 }
-
-
 
 .cards{
-
   display:grid; gap:12px; grid-template-columns: repeat(7, minmax(0, 1fr));
-
   margin-bottom:16px;
-
 }
-
 .card{
-
   background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px;
-
 }
-
 .card .label{color:var(--muted); font-size:12px}
-
 .card .value{font-size:18px; margin-top:4px}
 
-
-
-.player-box{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
-
-.video-wrap{position:relative; width:100%; max-width:100%; background:#000; border-radius:8px; overflow:hidden}
-
-#player{width:100%; height:auto; display:block}
-
-#overlayVid{
-
-  position:absolute; left:0; top:0; width:100%; height:100%; /* [수정] height: auto -> 100% */
-
-  pointer-events:none;
-
-  mix-blend-mode:screen; /* 기본 */
-
-  opacity:.7;           /* 기본 */
-
+.player-box{
+  background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;
 }
 
+/* === 비디오 컨테이너: 본편 메타데이터로 aspect-ratio 고정 === */
+.video-wrap{
+  position:relative; width:100%; max-width:100%; background:#000; border-radius:8px; overflow:hidden;
+  /* JS에서 --video-aspect 설정 (vw/vh) */
+  aspect-ratio: var(--video-aspect, 16/9);
+}
+
+/* 기본 비디오/오버레이/캔버스: 같은 박스에 100%로 겹치기 */
+#player,
+#overlayVid,
 #overlay{
-
-  position:absolute; left:0; top:0; pointer-events:none;
-
-  width:100%; /* [수정] 추가 */
-
-  height:100%; /* [수정] 추가 */
-
+  position:absolute; left:0; top:0; width:100%; height:100%;
 }
 
+/* 본편 비디오는 컨트롤 때문에 flow에 한 번 더 지정 */
+#player{
+  position:relative;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#000;
+}
 
+/* 오버레이 비디오는 마우스 이벤트 차단 + 기본 블렌드/투명도 */
+#overlayVid{
+  pointer-events:none;
+  object-fit:contain;
+  mix-blend-mode:screen; /* 기본 */
+  opacity:.7;            /* 기본 */
+  display:none;          /* 로드 전 숨김 */
+}
+
+/* 캔버스(좌표 드로잉용) */
+#overlay{
+  pointer-events:none;
+}
 
 .controls{display:flex; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap}
-
 .toggles label{margin-right:12px; user-select:none}
-
 .overlay-select select{margin-left:4px}
-
 #seek{width:100%}
 
-
-
 .charts{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
-
 .charts h2{margin:0 0 8px 0; font-size:16px}
-
 .charts canvas{width:100%; height:280px}
 
-
-
 .raw details{margin:8px 0}
-
 .raw pre{background:#0f1117; color:#d1d5db; border:1px solid var(--border); padding:12px; border-radius:8px; overflow:auto}
 
-
-
 /* 그룹(팀/플레이어) 접힘 스타일 */
-
 .team-group, .player-group {
-
   margin: 6px 8px;
-
   border: 1px solid var(--border);
-
   border-radius: 8px;
-
   background: #141720;
-
 }
-
-
-
 .team-group > summary, .player-group > summary {
-
   cursor: pointer;
-
   padding: 8px 10px;
-
   list-style: none;
-
   display: flex;
-
   align-items: center;
-
   justify-content: space-between;
-
 }
-
 .team-group > summary::-webkit-details-marker,
-
 .player-group > summary::-webkit-details-marker { display: none; }
 
-
-
 .group-title { font-weight: 600; }
-
 .group-count {
-
   font-size: 12px;
-
   color: var(--muted);
-
   background: #11151f;
-
   border: 1px solid var(--border);
-
   padding: 2px 8px;
-
   border-radius: 999px;
-
   margin-left: 8px;
-
 }
-
-
 
 .player-group .report-items {
-
   padding: 6px 8px 10px 8px;
-
 }
-
 .player-group .report-item {
-
   background: transparent;
-
   border: 1px solid transparent;
-
   border-radius: 8px;
-
   margin: 6px 0;
-
   padding: 8px 10px;
-
   cursor: pointer;
-
 }
-
 .player-group .report-item:hover {
-
   border-color: var(--border);
-
   background: #0f131c;
-
 }
