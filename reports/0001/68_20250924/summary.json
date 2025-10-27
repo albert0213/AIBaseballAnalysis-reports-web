@@ -1,0 +1,37 @@
+{
+  "swing_type": null,
+  "head_stability": "7.7",
+  "impact_weight_front": "3.9",
+  "impact_weight_rear": "6.1",
+  "impact_frame": 40,
+  "shoulder_takeback_deg": null,
+  "pelvis_takeback_deg": null,
+  "shoulder_impact_deg": null,
+  "pelvis_impact_deg": null,
+  "shoulder_follow_deg": null,
+  "pelvis_follow_deg": null,
+  "separation_deg": "28.2",
+  "opening_deg": "-31.4",
+  "stride_cm": null,
+  "custom_label1": null,
+  "custom_data1": null,
+  "custom_label2": null,
+  "custom_data2": null,
+  "overlays": {
+    "skeleton": true,
+    "hand_trace": true,
+    "head_stability": true,
+    "center_shift": true,
+    "shoulder_hip_rotation": true
+  },
+  "assets": {
+    "report_video": null
+  },
+  "created_at": "2025-09-24T10:48:57",
+  "player_id": "0001",
+  "report_id": "68_20250924",
+  "opening_frame_index": 40,
+  "opening_frame_number": 41,
+  "bat_side": "R",
+  "opening_wrist_key": "left_wrist"
+}

@@ -1,0 +1,14 @@
+{
+  "player_id": "0004",
+  "report_id": "10_20251002",
+  "created_at": "2025-10-02T11:20:19",
+  "analysis_type": "pitch_sync",
+  "pitch_compare": {
+    "fastball_video": "database/report_data/0004/10_20251002/fastball.mp4",
+    "breaking_video": "database/report_data/0004/10_20251002/breaking.mp4",
+    "status": "completed",
+    "overlay_video": "database/report_data/0004/10_20251002/result/pitch_sync_overlay.mp4",
+    "overlay_skeleton": "database/report_data/0004/10_20251002/result/pitch_sync_overlay_skeleton.mp4",
+    "overlay_hand_trace": "database/report_data/0004/10_20251002/result/pitch_sync_overlay_hand_trace.mp4"
+  }
+}
