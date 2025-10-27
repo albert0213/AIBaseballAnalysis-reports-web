@@ -117,3 +117,26 @@ body{
   border-color: var(--border);
   background: #0f131c;
 }
+
+/* === 비디오/오버레이 레이어 정렬 === */
+.player{
+  position:relative;
+  width:100%;
+  max-width:1280px; /* 필요 시 조정 */
+  margin:0 auto;
+}
+.player > video,
+.player > canvas,
+.player > .overlay-video{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+}
+.player > video{
+  object-fit:contain;   /* 좌표 정합을 위해 contain 권장 */
+  background:#000;
+}
+.player > canvas{
+  pointer-events:none;  /* 클릭 통과 */
+}

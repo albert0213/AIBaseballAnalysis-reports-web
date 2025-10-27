@@ -33,13 +33,13 @@
 
     <!-- 비디오 + 오버레이 + 시킹 -->
     <section class="player-box">
-      <div class="video-wrap">
-        <video id="player" controls playsinline></video>
-        <!-- 오버레이 비디오 (겹침) -->
-        <video id="overlayVid" playsinline muted></video>
-        <!-- 캔버스(추후 도형/좌표 오버레이용) -->
-        <canvas id="overlay"></canvas>
+      <div id="player" class="player">
+        <video id="mainVideo" playsinline controls></video>
+        <video id="overlayVid" class="overlay-video" muted></video>
+        <canvas id="overlayCanvas"></canvas>
+        <div id="timeLabel" style="position:absolute;left:12px;top:12px;"></div>
       </div>
+
 
       <div class="controls">
         <div class="toggles">

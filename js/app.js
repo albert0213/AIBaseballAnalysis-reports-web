@@ -395,3 +395,62 @@ function updateChartCursor(tSec) {
   chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
   chart.update("none");
 }
+
+
+// === 레이어 크기 동기화 ===
+const video = document.getElementById('mainVideo');
+const overlayVid = document.getElementById('overlayVid');
+const canvas = document.getElementById('overlayCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeLayersToVideo() {
+  if (!video) return;
+  const rect = video.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  // 보이는 크기 통일
+  [canvas, overlayVid].forEach(el => {
+    if (!el) return;
+    el.style.width  = rect.width + 'px';
+    el.style.height = rect.height + 'px';
+  });
+
+  // 캔버스 내부 픽셀(DPR 반영)
+  canvas.width  = Math.round(rect.width  * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// 메타데이터/리사이즈/전체화면 시 동기화
+video?.addEventListener('loadedmetadata', () => {
+  // 원본 비율을 컨테이너에 고정하려면 아래 주석 해제
+  // document.getElementById('player').style.aspectRatio =
+  //   `${video.videoWidth} / ${video.videoHeight}`;
+  resizeLayersToVideo();
+});
+window.addEventListener('resize', resizeLayersToVideo);
+document.addEventListener('fullscreenchange', resizeLayersToVideo);
+
+// (선택) 소스 교체 유틸
+function loadReportSources(mainSrc, overlaySrc) {
+  video.src = mainSrc;
+  if (overlaySrc) {
+    overlayVid.src = overlaySrc;
+    overlayVid.style.display = '';
+  } else {
+    overlayVid.removeAttribute('src');
+    overlayVid.style.display = 'none';
+  }
+}
+
+// === 좌표 스케일 유틸 ===
+function getVideoScale() {
+  const rect = video.getBoundingClientRect();
+  return {
+    sx: rect.width  / (video.videoWidth  || rect.width  || 1),
+    sy: rect.height / (video.videoHeight || rect.height || 1)
+  };
+}
+// 사용 예시:
+// const {sx, sy} = getVideoScale();
+// const x = kp.x * sx; const y = kp.y * sy; 로 캔버스에 그리면 정확히 겹칩니다.
