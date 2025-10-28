@@ -139,7 +139,7 @@
         <canvas id="centerCanvas" class="offscreen"></canvas>
       </section>
 
-      <!-- 슬라이더 -->
+      <!-- 슬라이더 (가로 전폭) -->
       <div class="center-controls">
         <label class="center-slider-label">Frame:
           <span id="centerFrameLabel">-</span>
@@ -147,16 +147,20 @@
         <input id="centerFrame" type="range" min="1" max="1" step="1" value="1" />
       </div>
 
-      <!-- 좌/우 비율 바 -->
+      <!-- 좌/우 비율 바 (시각 위치 스왑: Right=왼쪽, Left=오른쪽) -->
       <div class="center-bar">
         <div class="center-bar-left" id="centerLeft"></div>
         <div class="center-bar-right" id="centerRight"></div>
       </div>
+
+      <!-- 범례(라벨은 기존대로 유지) -->
       <div class="center-bar-legend">
-        <span class="chip chip-blue"></span> Left (파란색)
-        <span class="chip chip-red"></span> Right (빨간색)
-        <span class="ratio-text" id="centerRatioText"></span>
+        <span><span class="chip chip-blue"></span> Left (파란색)</span>
+        <span><span class="chip chip-red"></span> Right (빨간색)</span>
       </div>
+
+      <!-- 크게, 가운데: Right : Left -->
+      <div class="center-ratio-big" id="centerRatioBig"> </div>
     </section>
   </main>
 
