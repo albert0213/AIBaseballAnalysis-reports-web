@@ -602,7 +602,7 @@ const hLinesPlugin = {
       if (isNaN(y)) return;
       ctx.save();
       ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.0;
       ctx.setLineDash([]); // 실선
       ctx.beginPath();
       ctx.moveTo(chartArea.left, y);
@@ -659,8 +659,8 @@ function buildRotationChart() {
     type: "line",
     data: {
       datasets: [
-        { label: "Shoulder (deg)", data: S, pointRadius: 0, borderWidth: 2 },
-        { label: "Hip (deg)",      data: H, pointRadius: 0, borderWidth: 2 },
+        { label: "Shoulder (deg)", data: S, pointRadius: 0, borderWidth: 2, borderColor: "#60a5fa", backgroundColor: "#60a5fa" },
+        { label: "Hip (deg)",      data: H, pointRadius: 0, borderWidth: 2, borderColor: "#34d399", backgroundColor: "#34d399"},
         ...(SEP ? [{
           label: "Separation (deg)",
           data: SEP,
