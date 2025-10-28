@@ -666,12 +666,19 @@ function initCenterView(){
   ensureMeta.then(()=>{
     const vw = centerState.baseVideo.videoWidth  || 1280;
     const vh = centerState.baseVideo.videoHeight || 720;
+
+    // 논리 크기(= CSS 픽셀) 저장
+    centerState.logicalW = vw;
+    centerState.logicalH = vh;
+
     const dpr = window.devicePixelRatio || 1;
+    // 실 캔버스 픽셀 크기 (DPR 반영)
     centerState.canvas.width  = Math.floor(vw * dpr);
     centerState.canvas.height = Math.floor(vh * dpr);
-    centerState.canvas.style.width = vw + "px";
-    centerState.canvas.style.height= vh + "px";
-    centerState.ctx.setTransform(dpr,0,0,dpr,0,0);
+    // CSS 크기는 논리 크기로
+    centerState.canvas.style.width  = vw + "px";
+    centerState.canvas.style.height = vh + "px";
+    centerState.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     centerState.ready = true;
 
@@ -735,17 +742,21 @@ async function drawCenterFrame(frame){
   const b = centerState.baseVideo;
   const o = centerState.overlayVideo;
 
-  ctx.clearRect(0,0,cvs.width,cvs.height);
-  if (b.readyState >= 2) ctx.drawImage(b, 0, 0, cvs.width, cvs.height);
+  const W = centerState.logicalW || (b.videoWidth  || 1280);
+  const H = centerState.logicalH || (b.videoHeight || 720);
+
+  ctx.clearRect(0,0,W,H);
+
+  // 💡 여기서부터 '논리 크기(W,H)'로만 draw → 잘림 방지
+  if (b.readyState >= 2) ctx.drawImage(b, 0, 0, W, H);
   if (o.readyState >= 2) {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = 0.7;
-    ctx.drawImage(o, 0, 0, cvs.width, cvs.height);
+    ctx.drawImage(o, 0, 0, W, H);
     ctx.restore();
   }
 
-  // 종횡비 보존: 이미지 영역에서 잘림 방지 (height:auto)
   const dataUrl = cvs.toDataURL("image/jpeg", 0.9);
   centerState.imgEl.src = dataUrl;
 }
