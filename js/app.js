@@ -504,32 +504,45 @@ async function gotoTimeAndOverlay(tSec, overlayFile){
     } catch {}
   }
 }
-async function captureCompositePNG(){
+async function captureCompositePNG() {
   const video = state.video;
   const overlay = state.overlayVid;
   if (!video) throw new Error("video 없음");
 
+  // 메인 뷰가 display:none이면 getBoundingClientRect()가 0이므로,
+  // 비디오의 고유 해상도(videoWidth/Height)로 안전하게 캔버스 크기를 잡습니다.
   const rect = video.getBoundingClientRect();
-  const w = Math.max(1, Math.floor(rect.width));
-  const h = Math.max(1, Math.floor(rect.height));
-  const dpr = window.devicePixelRatio || 1;
+  const vw = video.videoWidth || 1280;
+  const vh = video.videoHeight || 720;
 
+  let w = Math.floor(rect.width)  || vw;
+  let h = Math.floor(rect.height) || vh;
+
+  // 혹시 하나만 0인 경우 비율 보정
+  if (!w && h) w = Math.round(h * (vw / vh));
+  if (!h && w) h = Math.round(w * (vh / vw));
+
+  const dpr = window.devicePixelRatio || 1;
   const off = document.createElement("canvas");
-  off.width = Math.floor(w*dpr);
-  off.height= Math.floor(h*dpr);
+  off.width = Math.max(1, Math.floor(w * dpr));
+  off.height = Math.max(1, Math.floor(h * dpr));
   const ctx = off.getContext("2d");
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   // 본편
-  ctx.drawImage(video, 0,0,w,h);
+  if (video.readyState >= 2) {
+    ctx.drawImage(video, 0, 0, w, h);
+  } else {
+    throw new Error("video not ready");
+  }
 
-  // 오버레이 (단순 투명 합성)
-  if (overlay && overlay.src && overlay.readyState >= 2){
+  // 오버레이
+  if (overlay && overlay.src && overlay.readyState >= 2) {
     const opacity = Number(overlay.style.opacity || "0.7");
-    if (opacity > 0){
+    if (opacity > 0) {
       ctx.save();
       ctx.globalAlpha = opacity;
-      ctx.drawImage(overlay, 0,0,w,h);
+      ctx.drawImage(overlay, 0, 0, w, h);
       ctx.restore();
     }
   }
@@ -537,8 +550,9 @@ async function captureCompositePNG(){
   // 라벨
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,.7)";
-  ctx.fillRect(8,8,220,30);
-  ctx.fillStyle="#fff"; ctx.font="14px system-ui, sans-serif";
+  ctx.fillRect(8, 8, 240, 30);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px system-ui, sans-serif";
   ctx.fillText(`snapshot @ ${video.currentTime.toFixed(3)}s`, 16, 28);
   ctx.restore();
 
@@ -572,4 +586,158 @@ function setRotationPreview(dataUrl, t, frame){
   img.src = dataUrl;
   meta.textContent = `t=${t.toFixed(3)}s, frame=${frame}`;
   state.lastSnapshot = { dataUrl, t, frame };
+}
+
+// === [추가] 차트 플러그인: y=0°, y=90° 실선 & sep max 라벨(선택) ===
+const hLinesPlugin = {
+  id: "hLines",
+  afterDraw(chart, args, opts) {
+    const { ctx, chartArea, scales } = chart;
+    if (!scales?.y) return;
+    const yScale = scales.y;
+
+    // y=0, y=90 실선
+    [0, 90].forEach((yVal) => {
+      const y = yScale.getPixelForValue(yVal);
+      if (isNaN(y)) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]); // 실선
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    // (선택) 옵션으로 텍스트 라벨도 그릴 수 있음
+    if (opts?.labelAt !== undefined) {
+      const y = yScale.getPixelForValue(opts.labelAt);
+      if (!isNaN(y)) {
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.font = "12px system-ui, sans-serif";
+        ctx.fillText(`${opts.labelAt}°`, chartArea.left + 6, y - 4);
+        ctx.restore();
+      }
+    }
+  },
+};
+
+// === [교체] 회전 차트 빌더 ===
+function buildRotationChart() {
+  const parsed = state.rot;
+  const el = document.getElementById("chart-rotation");
+  if (!parsed || !el) return;
+
+  const ctx = el.getContext("2d");
+  if (state.chartRotation) {
+    state.chartRotation.destroy();
+    state.chartRotation = null;
+  }
+
+  // (x,y) 페어 - x: frame, y: angle
+  const S = parsed.frames.map((f, i) => ({ x: +f, y: +parsed.shoulder[i] ?? 0 }));
+  const H = parsed.frames.map((f, i) => ({ x: +f, y: +parsed.hip[i] ?? 0 }));
+
+  // separation(회색) + 최대값 표시
+  let SEP = null, sepMaxPt = null;
+  if (parsed.separation && parsed.separation.length) {
+    SEP = parsed.frames.map((f, i) => ({ x: +f, y: +parsed.separation[i] ?? 0 }));
+    let maxVal = -Infinity, maxIdx = -1;
+    for (let i = 0; i < parsed.separation.length; i++) {
+      const v = +parsed.separation[i];
+      if (v > maxVal) { maxVal = v; maxIdx = i; }
+    }
+    if (maxIdx >= 0) {
+      sepMaxPt = { x: +parsed.frames[maxIdx], y: +parsed.separation[maxIdx] };
+    }
+  }
+
+  state.chartRotation = new Chart(ctx, {
+    type: "line",
+    data: {
+      datasets: [
+        { label: "Shoulder (deg)", data: S, pointRadius: 0, borderWidth: 2 },
+        { label: "Hip (deg)",      data: H, pointRadius: 0, borderWidth: 2 },
+        ...(SEP ? [{
+          label: "Separation (deg)",
+          data: SEP,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderColor: "#9ca3af",        // 회색
+          backgroundColor: "#9ca3af"
+        }] : []),
+        ...(sepMaxPt ? [{
+          type: "scatter",
+          label: "Separation Max",
+          data: [sepMaxPt],
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2,
+          borderColor: "#f59e0b",        // 강조색(앰버)
+          backgroundColor: "#fbbf24",
+          showLine: false
+        }] : [])
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      parsing: false,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true },
+        tooltip: { enabled: true }
+      },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "Frame" },
+          grid: {
+            color: "rgba(255,255,255,0.08)",
+            borderDash: [4, 4] // 점선 격자
+          }
+        },
+        y: {
+          type: "linear",
+          title: { display: true, text: "Angle (deg)" },
+          grid: {
+            color: "rgba(255,255,255,0.08)",
+            borderDash: [4, 4] // 점선 격자
+          }
+        }
+      },
+      // 차트 클릭 → 프레임 이동 & 스냅샷
+      onClick: async (evt) => {
+        const elems = state.chartRotation.getElementsAtEventForMode(evt, "nearest", { intersect: false }, true);
+        if (!elems?.length) return;
+        const { datasetIndex, index } = elems[0];
+        const ds = state.chartRotation.data.datasets[datasetIndex].data;
+        const point = ds[index];
+        const frame = Number(point.x);
+        const t = (frame - 1) / (state.rot?.fps || state.fps || 30);
+
+        // 1) 오버레이 적용 + 시킹
+        await gotoTimeAndOverlay(t, "shoulder_hip_rotation.mp4");
+
+        // 2) 렌더 타이밍 보정 (2프레임 대기)
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        // 3) 스냅샷
+        try {
+          const dataUrl = await captureCompositePNG();
+          setRotationPreview(dataUrl, t, frame);
+        } catch (e) {
+          console.warn("스냅샷 실패:", e);
+          setRotationPreview(null, t, frame);
+        }
+      }
+    },
+    plugins: [
+      // y=0°, 90° 실선
+      { ...hLinesPlugin, labelAt: undefined }
+    ]
+  });
 }
