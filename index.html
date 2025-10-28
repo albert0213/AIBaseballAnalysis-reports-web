@@ -1,169 +1,315 @@
 <!doctype html>
+
 <html lang="ko">
+
 <head>
+
   <meta charset="utf-8" />
+
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+
   <title>Report Viewer</title>
+
   <link rel="stylesheet" href="css/styles.css" />
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  
+
+  <style>
+
+    #centerPreview {
+
+      max-width: 100%; /* 컨테이너 너비에 맞게 자동 축소 */
+
+      height: auto;    /* 종횡비 유지 */
+
+      display: block;  /* 이미지 하단의 불필요한 여백 제거 */
+
+    }
+
+  </style>
+
 </head>
+
 <body>
+
   <header class="topbar">
+
     <h1>Report Viewer (Static)</h1>
+
     <nav class="topnav">
+
       <button id="nav-rotation" class="nav-btn">어깨-골반 회전</button>
+
       <button id="nav-center" class="nav-btn">무게 중심 이동</button>
+
     </nav>
+
   </header>
 
+
+
   <aside class="sidebar" id="sidebar">
+
     <div class="sidebar-header">
+
       <strong>Reports</strong>
+
     </div>
+
     <div id="report-list" class="report-list">로딩 중...</div>
+
   </aside>
 
+
+
   <main class="content">
-    <!-- ============ View: 메인 ============ -->
-    <section id="view-main" class="view active">
-      <!-- 요약 카드 -->
-      <section id="summary-cards" class="cards">
+
+        <section id="view-main" class="view active">
+
+            <section id="summary-cards" class="cards">
+
         <div class="card"><div class="label">Player</div><div class="value" id="card-player">-</div></div>
+
         <div class="card"><div class="label">Name</div><div class="value" id="card-player-name">-</div></div>
+
         <div class="card"><div class="label">Team / No.</div><div class="value" id="card-team-num">-</div></div>
+
         <div class="card"><div class="label">Report</div><div class="value" id="card-report">-</div></div>
+
         <div class="card"><div class="label">Swing</div><div class="value" id="card-swing-type">-</div></div>
+
         <div class="card"><div class="label">Separation</div><div class="value" id="card-sep">-</div></div>
+
         <div class="card"><div class="label">Stride (cm)</div><div class="value" id="card-stride">-</div></div>
+
       </section>
 
-      <!-- 비디오 + 오버레이 + 시킹 -->
-      <section class="player-box">
+
+
+            <section class="player-box">
+
         <div class="video-wrap" id="videoWrap">
+
           <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
+
           <video id="overlayVid" playsinline muted preload="metadata" crossorigin="anonymous"></video>
+
           <canvas id="overlay"></canvas>
+
         </div>
+
+
 
         <div class="controls">
-          <div class="toggles">
-            <label><input type="checkbox" data-layer="skel" checked> Skeleton</label>
-            <label><input type="checkbox" data-layer="head" checked> Head trace</label>
-            <label><input type="checkbox" data-layer="path"> Hand path</label>
-          </div>
 
           <div class="overlay-select">
+
             <label>Overlay:
+
               <select id="overlaySelect">
+
                 <option value="">(없음)</option>
-                <option value="skeleton.mp4">Skeleton</option>
-                <option value="hand_trace.mp4">Hand trace</option>
-                <option value="head_stability.mp4">Head stability</option>
-                <option value="center_shift.mp4">Center shift</option>
-                <option value="shoulder_hip_rotation.mp4" selected>Shoulder-Hip Rotation</option>
+
+                <option value="skeleton.mp4">Skeleton(스켈레톤)</option>
+
+                <option value="hand_trace.mp4">Hand trace(타격 손 추적)</option>
+
+                <option value="head_stability.mp4">Head stability(머리 고정)</option>
+
+                <option value="center_shift.mp4">Center shift(중심 이동)</option>
+
+                <option value="shoulder_hip_rotation.mp4" selected>Shoulder-Hip Rotation(어깨-골반 회전)</option>
+
               </select>
+
             </label>
+
             <label style="margin-left:8px;">Opacity
+
               <input id="overlayOpacity" type="range" min="0" max="100" value="70">
+
             </label>
+
             <label style="margin-left:8px;">Blend
+
               <select id="overlayBlend">
+
                 <option value="screen" selected>screen</option>
+
                 <option value="lighten">lighten</option>
+
                 <option value="normal">normal</option>
+
               </select>
+
             </label>
+
           </div>
 
-          <!-- 🎯 재생 속도 버튼 그룹 -->
-          <div class="playback">
+
+
+                    <div class="playback">
+
             <span class="speed-label">Speed:</span>
+
             <button class="rate-btn" data-rate="1">1x</button>
+
             <button class="rate-btn" data-rate="0.5">1/2x</button>
+
             <button class="rate-btn" data-rate="0.25">1/4x</button>
+
             <button class="rate-btn" data-rate="0.125">1/8x</button>
+
           </div>
+
+
 
           <input id="seek" type="range" min="0" max="1000" value="0" />
+
         </div>
+
       </section>
 
-      <!-- 메인에는 각도 차트 없음 -->
-      <section class="raw">
+
+
+            <section class="raw">
+
         <details>
+
           <summary>summary.json</summary>
+
           <pre id="raw-summary">-</pre>
+
         </details>
+
         <details>
+
           <summary>series.json</summary>
+
           <pre id="raw-series">-</pre>
+
         </details>
+
       </section>
+
     </section>
 
-    <!-- ============ View: 어깨-골반 회전 ============ -->
-    <section id="view-rotation" class="view">
+
+
+        <section id="view-rotation" class="view">
+
       <div class="subhead">
+
         <button class="btn" id="back-main-1">← 뒤로</button>
+
         <h2>어깨-골반 회전</h2>
+
       </div>
+
+
 
       <section class="charts">
+
         <canvas id="chart-rotation"></canvas>
+
       </section>
 
+
+
       <section class="frame-preview">
+
         <div class="frame-preview-head">
+
           <strong>Snapshot @ <span id="rotationMeta">-</span></strong>
+
           <button id="btnSaveRotationPng" class="btn">PNG 저장</button>
+
         </div>
+
         <img id="rotationPreview" alt="rotation frame preview" />
+
       </section>
+
     </section>
 
-    <!-- ============ View: 무게 중심 이동 ============ -->
-    <section id="view-center" class="view">
+
+
+        <section id="view-center" class="view">
+
       <div class="subhead">
+
         <button class="btn" id="back-main-2">← 뒤로</button>
+
         <h2>무게 중심 이동</h2>
+
       </div>
 
-      <!-- 상단: 합성 프레임 이미지 -->
-      <section class="frame-preview">
+
+
+            <section class="frame-preview">
+
         <div class="frame-preview-head">
+
           <strong>Snapshot @ Frame <span id="centerMeta">-</span></strong>
+
           <button id="btnSaveCenterPng" class="btn">PNG 저장</button>
+
         </div>
+
         <img id="centerPreview" alt="center shift frame preview" />
-        <!-- 오프스크린 합성용 -->
-        <canvas id="centerCanvas" class="offscreen"></canvas>
+
+                <canvas id="centerCanvas" class="offscreen"></canvas>
+
       </section>
 
-      <!-- 슬라이더 (가로 전폭) -->
-      <div class="center-controls">
+
+
+            <div class="center-controls">
+
         <label class="center-slider-label">Frame:
+
           <span id="centerFrameLabel">-</span>
+
         </label>
+
         <input id="centerFrame" type="range" min="1" max="1" step="1" value="1" />
+
       </div>
 
-      <!-- 좌/우 비율 바 (시각 위치 스왑: Right=왼쪽, Left=오른쪽) -->
-      <div class="center-bar">
+
+
+            <div class="center-bar">
+
         <div class="center-bar-left" id="centerLeft"></div>
+
         <div class="center-bar-right" id="centerRight"></div>
+
       </div>
 
-      <!-- 범례(라벨은 기존대로 유지) -->
-      <div class="center-bar-legend">
+
+
+            <div class="center-bar-legend">
+
         <span><span class="chip chip-blue"></span> Left (파란색)</span>
+
         <span><span class="chip chip-red"></span> Right (빨간색)</span>
+
       </div>
 
-      <!-- 크게, 가운데: Right : Left -->
-      <div class="center-ratio-big" id="centerRatioBig"> </div>
+
+
+            <div class="center-ratio-big" id="centerRatioBig"> </div>
+
     </section>
+
   </main>
 
+
+
   <script defer src="js/app.js"></script>
+
 </body>
+
 </html>
