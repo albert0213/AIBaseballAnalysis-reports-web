@@ -36,10 +36,7 @@
       <div class="video-wrap" id="videoWrap">
         <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
 
-        <!-- 오버레이 비디오 (겹침) -->
         <video id="overlayVid" playsinline muted preload="metadata" crossorigin="anonymous"></video>
-
-        <!-- 캔버스(추후 도형/좌표 오버레이용) -->
         <canvas id="overlay"></canvas>
       </div>
 
@@ -71,29 +68,24 @@
           </label>
         </div>
 
-        <!-- ▶ 재생 속도 선택 -->
+        <!-- 🎯 재생 속도 버튼 그룹 -->
         <div class="playback">
-          <label>Speed:
-            <select id="rateSelect">
-              <option value="1">1x</option>
-              <option value="0.5">1/2x</option>
-              <option value="0.25">1/4x</option>
-              <option value="0.125">1/8x</option>
-            </select>
-          </label>
+          <span class="speed-label">Speed:</span>
+          <button class="rate-btn" data-rate="1">1x</button>
+          <button class="rate-btn" data-rate="0.5">1/2x</button>
+          <button class="rate-btn" data-rate="0.25">1/4x</button>
+          <button class="rate-btn" data-rate="0.125">1/8x</button>
         </div>
 
         <input id="seek" type="range" min="0" max="1000" value="0" />
       </div>
     </section>
 
-    <!-- 그래프 섹션 -->
     <section class="charts">
       <h2>Angles</h2>
       <canvas id="chart-angles"></canvas>
     </section>
 
-    <!-- 원본 JSON 보기(디버그용) -->
     <section class="raw">
       <details>
         <summary>summary.json</summary>

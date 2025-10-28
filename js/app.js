@@ -310,11 +310,19 @@ function trySyncOverlayVideo() {
 
 // ================== 재생 속도 컨트롤 ==================
 function wirePlaybackControls() {
-  const sel = document.getElementById("rateSelect");
-  if (!sel) return;
-  // 초기 UI 값
-  sel.value = String(state.rate);
-  sel.onchange = () => setPlaybackRate(Number(sel.value));
+  const buttons = document.querySelectorAll(".rate-btn");
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const rate = Number(btn.dataset.rate);
+      setPlaybackRate(rate);
+      // 버튼 활성화 표시
+      buttons.forEach(b => b.classList.toggle("active", b === btn));
+    });
+  });
+  // 초기 활성화 표시
+  buttons.forEach(b => {
+    if (Number(b.dataset.rate) === state.rate) b.classList.add("active");
+  });
 }
 
 function setPlaybackRate(r) {
@@ -322,9 +330,7 @@ function setPlaybackRate(r) {
   state.rate = r;
   if (state.video) state.video.playbackRate = r;
   if (state.overlayVid) state.overlayVid.playbackRate = r;
-
-  const sel = document.getElementById("rateSelect");
-  if (sel && sel.value !== String(r)) sel.value = String(r);
+  console.log(`[속도 변경] ${r}x`);
 }
 
 // ================== 비디오 동기화 + 캔버스 ==================

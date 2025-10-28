@@ -142,3 +142,35 @@ body{
   border-color: var(--border);
   background: #0f131c;
 }
+
+/* 🎯 재생 속도 버튼 스타일 */
+.playback {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.speed-label {
+  color: var(--muted);
+  margin-right: 4px;
+  font-size: 13px;
+}
+
+.rate-btn {
+  background: #1c1f29;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .2s ease;
+}
+.rate-btn:hover {
+  background: #2a2f3a;
+}
+.rate-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
