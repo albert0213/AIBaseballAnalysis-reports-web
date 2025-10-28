@@ -10,9 +10,13 @@
 <body>
   <header class="topbar">
     <h1>Report Viewer (Static)</h1>
+    <nav class="topnav">
+      <button id="nav-rotation" class="nav-btn">어깨-골반 회전</button>
+      <button id="nav-center" class="nav-btn">무게 중심 이동</button>
+    </nav>
   </header>
 
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <strong>Reports</strong>
     </div>
@@ -20,93 +24,114 @@
   </aside>
 
   <main class="content">
-    <!-- 요약 카드 -->
-    <section id="summary-cards" class="cards">
-      <div class="card"><div class="label">Player</div><div class="value" id="card-player">-</div></div>
-      <div class="card"><div class="label">Name</div><div class="value" id="card-player-name">-</div></div>
-      <div class="card"><div class="label">Team / No.</div><div class="value" id="card-team-num">-</div></div>
-      <div class="card"><div class="label">Report</div><div class="value" id="card-report">-</div></div>
-      <div class="card"><div class="label">Swing</div><div class="value" id="card-swing-type">-</div></div>
-      <div class="card"><div class="label">Separation</div><div class="value" id="card-sep">-</div></div>
-      <div class="card"><div class="label">Stride (cm)</div><div class="value" id="card-stride">-</div></div>
+    <!-- ============ View: 메인 ============ -->
+    <section id="view-main" class="view active">
+      <!-- 요약 카드 -->
+      <section id="summary-cards" class="cards">
+        <div class="card"><div class="label">Player</div><div class="value" id="card-player">-</div></div>
+        <div class="card"><div class="label">Name</div><div class="value" id="card-player-name">-</div></div>
+        <div class="card"><div class="label">Team / No.</div><div class="value" id="card-team-num">-</div></div>
+        <div class="card"><div class="label">Report</div><div class="value" id="card-report">-</div></div>
+        <div class="card"><div class="label">Swing</div><div class="value" id="card-swing-type">-</div></div>
+        <div class="card"><div class="label">Separation</div><div class="value" id="card-sep">-</div></div>
+        <div class="card"><div class="label">Stride (cm)</div><div class="value" id="card-stride">-</div></div>
+      </section>
+
+      <!-- 비디오 + 오버레이 + 시킹 (백그라운드 재생/스냅샷 소스 역할 겸용) -->
+      <section class="player-box">
+        <div class="video-wrap" id="videoWrap">
+          <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
+          <video id="overlayVid" playsinline muted preload="metadata" crossorigin="anonymous"></video>
+          <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="controls">
+          <div class="toggles">
+            <label><input type="checkbox" data-layer="skel" checked> Skeleton</label>
+            <label><input type="checkbox" data-layer="head" checked> Head trace</label>
+            <label><input type="checkbox" data-layer="path"> Hand path</label>
+          </div>
+
+          <div class="overlay-select">
+            <label>Overlay:
+              <select id="overlaySelect">
+                <option value="">(없음)</option>
+                <option value="skeleton.mp4">Skeleton</option>
+                <option value="hand_trace.mp4">Hand trace</option>
+                <option value="head_stability.mp4">Head stability</option>
+                <option value="center_shift.mp4">Center shift</option>
+                <option value="shoulder_hip_rotation.mp4" selected>Shoulder-Hip Rotation</option>
+              </select>
+            </label>
+            <label style="margin-left:8px;">Opacity
+              <input id="overlayOpacity" type="range" min="0" max="100" value="70">
+            </label>
+            <label style="margin-left:8px;">Blend
+              <select id="overlayBlend">
+                <option value="screen" selected>screen</option>
+                <option value="lighten">lighten</option>
+                <option value="normal">normal</option>
+              </select>
+            </label>
+          </div>
+
+          <!-- 🎯 재생 속도 버튼 그룹 -->
+          <div class="playback">
+            <span class="speed-label">Speed:</span>
+            <button class="rate-btn" data-rate="1">1x</button>
+            <button class="rate-btn" data-rate="0.5">1/2x</button>
+            <button class="rate-btn" data-rate="0.25">1/4x</button>
+            <button class="rate-btn" data-rate="0.125">1/8x</button>
+          </div>
+
+          <input id="seek" type="range" min="0" max="1000" value="0" />
+        </div>
+      </section>
+
+      <!-- 참고: 메인 페이지에는 더 이상 각도 차트를 표시하지 않습니다. -->
+      <section class="raw">
+        <details>
+          <summary>summary.json</summary>
+          <pre id="raw-summary">-</pre>
+        </details>
+        <details>
+          <summary>series.json</summary>
+          <pre id="raw-series">-</pre>
+        </details>
+      </section>
     </section>
 
-    <!-- 비디오 + 오버레이 + 시킹 -->
-    <section class="player-box">
-      <div class="video-wrap" id="videoWrap">
-        <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
-        <video id="overlayVid" playsinline muted preload="metadata" crossorigin="anonymous"></video>
-        <canvas id="overlay"></canvas>
+    <!-- ============ View: 어깨-골반 회전 (깊이 1) ============ -->
+    <section id="view-rotation" class="view">
+      <div class="subhead">
+        <button class="btn" id="back-main-1">← 뒤로</button>
+        <h2>어깨-골반 회전</h2>
       </div>
 
-      <div class="controls">
-        <div class="toggles">
-          <label><input type="checkbox" data-layer="skel" checked> Skeleton</label>
-          <label><input type="checkbox" data-layer="head" checked> Head trace</label>
-          <label><input type="checkbox" data-layer="path"> Hand path</label>
-        </div>
+      <section class="charts">
+        <canvas id="chart-rotation"></canvas>
+      </section>
 
-        <div class="overlay-select">
-          <label>Overlay:
-            <select id="overlaySelect">
-              <option value="">(없음)</option>
-              <option value="skeleton.mp4" selected>Skeleton</option>
-              <option value="hand_trace.mp4">Hand trace</option>
-              <option value="head_stability.mp4">Head stability</option>
-              <option value="center_shift.mp4">Center shift</option>
-              <option value="shoulder_hip_rotation.mp4">Shoulder-Hip Rotation</option>
-            </select>
-          </label>
-          <label style="margin-left:8px;">Opacity
-            <input id="overlayOpacity" type="range" min="0" max="100" value="70">
-          </label>
-          <label style="margin-left:8px;">Blend
-            <select id="overlayBlend">
-              <option value="screen" selected>screen</option>
-              <option value="lighten">lighten</option>
-              <option value="normal">normal</option>
-            </select>
-          </label>
-        </div>
-
-        <!-- 🎯 재생 속도 버튼 그룹 -->
-        <div class="playback">
-          <span class="speed-label">Speed:</span>
-          <button class="rate-btn" data-rate="1">1x</button>
-          <button class="rate-btn" data-rate="0.5">1/2x</button>
-          <button class="rate-btn" data-rate="0.25">1/4x</button>
-          <button class="rate-btn" data-rate="0.125">1/8x</button>
-        </div>
-
-        <input id="seek" type="range" min="0" max="1000" value="0" />
-      </div>
-
-      <!-- 📸 그래프 클릭 시 캡처 프리뷰 -->
-      <div class="frame-preview">
+      <section class="frame-preview">
         <div class="frame-preview-head">
-          <strong>Snapshot @ <span id="previewMeta">-</span></strong>
-          <button id="btnSavePng" class="btn">PNG 저장</button>
+          <strong>Snapshot @ <span id="rotationMeta">-</span></strong>
+          <button id="btnSaveRotationPng" class="btn">PNG 저장</button>
         </div>
-        <img id="framePreview" alt="frame preview" />
+        <img id="rotationPreview" alt="rotation frame preview" />
+      </section>
+    </section>
+
+    <!-- ============ View: 무게 중심 이동 (깊이 1) ============ -->
+    <section id="view-center" class="view">
+      <div class="subhead">
+        <button class="btn" id="back-main-2">← 뒤로</button>
+        <h2>무게 중심 이동</h2>
       </div>
-    </section>
 
-    <!-- 각도 차트 -->
-    <section class="charts">
-      <h2>Angles</h2>
-      <canvas id="chart-angles"></canvas>
-    </section>
-
-    <!-- 원본 JSON 보기 -->
-    <section class="raw">
-      <details>
-        <summary>summary.json</summary>
-        <pre id="raw-summary">-</pre>
-      </details>
-      <details>
-        <summary>series.json</summary>
-        <pre id="raw-series">-</pre>
-      </details>
+      <section class="charts">
+        <canvas id="chart-center"></canvas>
+      </section>
+      <!-- 필요 시 이곳에도 스냅샷/이미지 영역 추가 가능 -->
     </section>
   </main>
 
