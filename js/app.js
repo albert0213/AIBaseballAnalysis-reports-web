@@ -19,12 +19,11 @@ function setRaw(elId, obj) {
   if (el) el.textContent = obj ? JSON.stringify(obj, null, 2) : "-";
 }
 function joinUrl(...parts) {
-  // 각 세그먼트를 encodeURIComponent 하되, 슬래시 위치는 보존
   return parts
     .filter(Boolean)
     .map((p, i) => (i === 0 ? p.replace(/\/+$/,'') : encodeURIComponent(p)))
     .join("/")
-    .replace(/([^:])\/{2,}/g, "$1/"); // // 중복 슬래시 정리
+    .replace(/([^:])\/{2,}/g, "$1/");
 }
 
 // ================== 글로벌 상태 ==================
@@ -37,8 +36,9 @@ const state = {
   fps: 30,
   toggles: { head: true, skel: true, path: false },
   angleChart: null,
-  playersById: {}, // { "0001": {id,name,team,number,...}, ... }
-  usingRVFC: false
+  playersById: {},
+  usingRVFC: false,
+  rate: 1 // ▶ 현재 재생 속도
 };
 
 // ================== 초기 로드 ==================
@@ -48,6 +48,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (e) {
     console.warn("players.json 로드 실패(선수 이름 매핑 없이 진행):", e);
   }
+  wireOverlayControls();
+  wirePlaybackControls();
   await loadIndex();
 });
 
@@ -74,7 +76,6 @@ function renderReportList(index) {
     return;
   }
 
-  // 팀 → 선수 → 리포트 구조
   const teams = {};
   for (const item of index) {
     const pid = item.player_id;
@@ -101,7 +102,6 @@ function renderReportList(index) {
     teamSummary.innerHTML = `<span class="group-title">🏷️ ${tName}</span><span class="group-count">${teamCount}</span>`;
     teamDetails.appendChild(teamSummary);
 
-    // 선수 정렬(이름 → 등번호)
     teamPlayers.sort((a, b) => {
       const an = a.player?.name || a.player?.id || "";
       const bn = b.player?.name || b.player?.id || "";
@@ -196,7 +196,9 @@ async function openReport(playerId, reportId) {
     video.onloadedmetadata = () => {
       lockAspectRatio(videoWrap, video);
       syncLayerSizes(video, overlayVid, document.getElementById("overlay"));
-      setupVideoSync(); // 리스너 1회 바인딩 (중복 방지 위해 내부에서 가드)
+      setupVideoSync(); // 1회 바인딩
+      // ▶ 초기 재생 속도 적용
+      setPlaybackRate(state.rate);
       applyOverlaySelection(); // 현재 선택된 오버레이 반영
       // 초기 seek range
       const seek = document.getElementById("seek");
@@ -204,14 +206,6 @@ async function openReport(playerId, reportId) {
       seek.max = Math.floor(video.duration * 1000);
       seek.value = 0;
     };
-
-    // 토글(캔버스 드로잉용 자리)
-    document.querySelectorAll(".toggles input[type=checkbox]").forEach(chk => {
-      chk.onchange = (e) => {
-        const key = e.target.dataset.layer;
-        state.toggles[key] = e.target.checked;
-      };
-    });
 
     buildCharts(series);
   } catch (e) {
@@ -222,7 +216,6 @@ async function openReport(playerId, reportId) {
 
 // ================== 비율/레이어 사이즈 ==================
 function lockAspectRatio(container, video) {
-  // videoWidth/Height로 래퍼의 aspect-ratio 고정
   const vw = video.videoWidth || 16;
   const vh = video.videoHeight || 9;
   const ratio = (vw / vh).toFixed(6);
@@ -230,7 +223,6 @@ function lockAspectRatio(container, video) {
 }
 
 function syncLayerSizes(video, overlayVid, canvas) {
-  // CSS는 폭/높이 100%로 맞추고, 캔버스의 픽셀 밀도만 조정
   const rect = video.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
 
@@ -252,13 +244,12 @@ function wireOverlayControls() {
   sel.onchange = applyOverlaySelection;
   op.oninput = () => {
     const v = Number(op.value);
-    state.overlayVid.style.opacity = (v / 100).toFixed(2);
+    if (state.overlayVid) state.overlayVid.style.opacity = (v / 100).toFixed(2);
   };
   blend.onchange = () => {
-    state.overlayVid.style.mixBlendMode = blend.value;
+    if (state.overlayVid) state.overlayVid.style.mixBlendMode = blend.value;
   };
 }
-wireOverlayControls();
 
 function applyOverlaySelection() {
   const sel = document.getElementById("overlaySelect");
@@ -278,11 +269,12 @@ function applyOverlaySelection() {
   console.log("[overlay] select", src);
 
   vid.onloadedmetadata = () => {
+    // ▶ 오버레이도 동일 속도/시간으로 동기화
+    vid.playbackRate = state.rate;
     trySyncOverlayVideo();
   };
   vid.onerror = () => {
     console.warn("[overlay] 로드 실패:", src);
-    // 실패 시 숨김
     vid.removeAttribute("src");
     vid.style.display = "none";
     alert(`오버레이 영상 로드 실패: ${src}`);
@@ -309,6 +301,30 @@ function trySyncOverlayVideo() {
   // 재생 상태 동기
   if (!over.paused && base.paused) over.pause();
   if (!base.paused && over.paused) over.play().catch(()=>{});
+
+  // ▶ 속도 동기
+  if (over.playbackRate !== base.playbackRate) {
+    over.playbackRate = base.playbackRate;
+  }
+}
+
+// ================== 재생 속도 컨트롤 ==================
+function wirePlaybackControls() {
+  const sel = document.getElementById("rateSelect");
+  if (!sel) return;
+  // 초기 UI 값
+  sel.value = String(state.rate);
+  sel.onchange = () => setPlaybackRate(Number(sel.value));
+}
+
+function setPlaybackRate(r) {
+  if (!r || r <= 0) r = 1;
+  state.rate = r;
+  if (state.video) state.video.playbackRate = r;
+  if (state.overlayVid) state.overlayVid.playbackRate = r;
+
+  const sel = document.getElementById("rateSelect");
+  if (sel && sel.value !== String(r)) sel.value = String(r);
 }
 
 // ================== 비디오 동기화 + 캔버스 ==================
@@ -340,6 +356,14 @@ function setupVideoSync() {
   video.addEventListener("play", () => overlayVid.play().catch(()=>{}));
   video.addEventListener("pause", () => overlayVid.pause());
 
+  // ▶ 속도 변경 이벤트(브라우저 단축키 등으로 변경 시 UI/오버레이 동기화)
+  video.addEventListener("ratechange", () => {
+    state.rate = video.playbackRate || 1;
+    if (overlayVid.playbackRate !== state.rate) overlayVid.playbackRate = state.rate;
+    const sel = document.getElementById("rateSelect");
+    if (sel && sel.value !== String(state.rate)) sel.value = String(state.rate);
+  });
+
   // RVFC 지원 여부
   state.usingRVFC = "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
@@ -349,10 +373,10 @@ function setupVideoSync() {
     ctx.save();
     ctx.globalAlpha = 0.8;
     ctx.fillStyle = "#000";
-    ctx.fillRect(8, 8, 140, 30);
+    ctx.fillRect(8, 8, 160, 30);
     ctx.fillStyle = "#fff";
     ctx.font = "14px system-ui, sans-serif";
-    ctx.fillText(`t = ${tSec.toFixed(2)}s`, 16, 28);
+    ctx.fillText(`t = ${tSec.toFixed(2)}s @ ${state.rate}x`, 16, 28);
     ctx.restore();
 
     // UI 동기
@@ -421,7 +445,7 @@ function buildCharts(series) {
       pointRadius: 0,
       borderWidth: 2
     });
-    if (datasets.length >= 3) break; // 과밀 방지
+    if (datasets.length >= 3) break;
   }
 
   if (!datasets.length) return;
