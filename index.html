@@ -37,7 +37,7 @@
         <div class="card"><div class="label">Stride (cm)</div><div class="value" id="card-stride">-</div></div>
       </section>
 
-      <!-- 비디오 + 오버레이 + 시킹 (백그라운드 재생/스냅샷 소스 역할 겸용) -->
+      <!-- 비디오 + 오버레이 + 시킹 -->
       <section class="player-box">
         <div class="video-wrap" id="videoWrap">
           <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
@@ -88,7 +88,7 @@
         </div>
       </section>
 
-      <!-- 참고: 메인 페이지에는 더 이상 각도 차트를 표시하지 않습니다. -->
+      <!-- 메인에는 각도 차트 없음 -->
       <section class="raw">
         <details>
           <summary>summary.json</summary>
@@ -101,7 +101,7 @@
       </section>
     </section>
 
-    <!-- ============ View: 어깨-골반 회전 (깊이 1) ============ -->
+    <!-- ============ View: 어깨-골반 회전 ============ -->
     <section id="view-rotation" class="view">
       <div class="subhead">
         <button class="btn" id="back-main-1">← 뒤로</button>
@@ -121,17 +121,42 @@
       </section>
     </section>
 
-    <!-- ============ View: 무게 중심 이동 (깊이 1) ============ -->
+    <!-- ============ View: 무게 중심 이동 ============ -->
     <section id="view-center" class="view">
       <div class="subhead">
         <button class="btn" id="back-main-2">← 뒤로</button>
         <h2>무게 중심 이동</h2>
       </div>
 
-      <section class="charts">
-        <canvas id="chart-center"></canvas>
+      <!-- 상단: 합성 프레임 이미지 -->
+      <section class="frame-preview">
+        <div class="frame-preview-head">
+          <strong>Snapshot @ Frame <span id="centerMeta">-</span></strong>
+          <button id="btnSaveCenterPng" class="btn">PNG 저장</button>
+        </div>
+        <img id="centerPreview" alt="center shift frame preview" />
+        <!-- 오프스크린 합성용 -->
+        <canvas id="centerCanvas" class="offscreen"></canvas>
       </section>
-      <!-- 필요 시 이곳에도 스냅샷/이미지 영역 추가 가능 -->
+
+      <!-- 슬라이더 -->
+      <div class="center-controls">
+        <label class="center-slider-label">Frame:
+          <span id="centerFrameLabel">-</span>
+        </label>
+        <input id="centerFrame" type="range" min="1" max="1" step="1" value="1" />
+      </div>
+
+      <!-- 좌/우 비율 바 -->
+      <div class="center-bar">
+        <div class="center-bar-left" id="centerLeft"></div>
+        <div class="center-bar-right" id="centerRight"></div>
+      </div>
+      <div class="center-bar-legend">
+        <span class="chip chip-blue"></span> Left (파란색)
+        <span class="chip chip-red"></span> Right (빨간색)
+        <span class="ratio-text" id="centerRatioText"></span>
+      </div>
     </section>
   </main>
 

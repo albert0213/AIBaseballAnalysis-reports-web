@@ -40,13 +40,12 @@ const state = {
 
   // 차트 인스턴스
   chartRotation: null,
-  chartCenter:   null,
 
   // 파싱 결과
-  rot: null,   // {frames, shoulder, hip, separation, fps}
-  center: null, // {frames, left, right}
+  rot: null,     // {frames, shoulder, hip, separation, fps}
+  center: null,  // {frames, left, right}
 
-  // 스냅샷 저장
+  // 회전뷰 스냅샷 저장
   lastSnapshot: null // {dataUrl, t, frame}
 };
 
@@ -57,6 +56,7 @@ window.addEventListener("DOMContentLoaded", async ()=>{
   wirePlaybackControls();
   wireSubViewButtons();
   wireRotationPreviewButtons();
+  wireCenterPreviewButtons();
 
   try { await loadPlayers(); } catch(e){ console.warn("players.json 로드 실패:", e); }
   await loadIndex();
@@ -97,18 +97,16 @@ function handleRoute(){
   const views = document.querySelectorAll(".view");
   views.forEach(v => v.classList.remove("active"));
 
-  // 사이드바는 서브페이지에서도 유지
   const viewMain = document.getElementById("view-main");
   const viewRot  = document.getElementById("view-rotation");
   const viewCen  = document.getElementById("view-center");
 
   if (hash.startsWith("#/rotation")) {
     viewRot?.classList.add("active");
-    // 데이터가 있을 때만(리포트 오픈 후) 차트 렌더
     if (state.rot) buildRotationChart();
   } else if (hash.startsWith("#/center")) {
     viewCen?.classList.add("active");
-    if (state.center) buildCenterChart();
+    if (state.center) initCenterView(); // 차트 대신 스냅샷/슬라이더 뷰 초기화
   } else {
     viewMain?.classList.add("active");
   }
@@ -246,11 +244,10 @@ async function openReport(playerId, reportId){
     };
 
     // ---- 서브페이지용 데이터 파싱 ----
-    state.rot = parseRotation(series, state.fps);   // 어깨·골반
-    state.center = parseCenterShift(series);        // 좌/우 비율 등
+    state.rot    = parseRotation(series, state.fps); // 어깨·골반
+    state.center = parseCenterShift(series);         // 좌/우 비율 등
 
-    // 현재 라우트에 맞춰 즉시 렌더
-    handleRoute();
+    handleRoute(); // 현재 라우트 즉시 반영
 
   } catch (e) {
     console.error("openReport error", e);
@@ -387,99 +384,130 @@ function parseRotation(series, fpsFallback){
 }
 function parseCenterShift(series){
   const blk = series?.series?.center_shift;
-  if (!blk?.frame) return null;
+  if (!blk?.frame || !blk?.left_ratio || !blk?.right_ratio) return null;
   return {
     frames: blk.frame,
-    left: blk.left_ratio ?? null,
-    right: blk.right_ratio ?? null
+    left: blk.left_ratio,
+    right: blk.right_ratio
   };
 }
 
-// ================== 회전 차트 (x=frame, y=deg, 한 축에 shoulder/hip) ==================
-function buildRotationChart(){
+// ================== 회전 차트 (x=frame, y=deg) ==================
+const hLinesPlugin = {
+  id: "hLines",
+  afterDraw(chart) {
+    const { ctx, chartArea, scales } = chart;
+    if (!scales?.y) return;
+    const yScale = scales.y;
+    [0, 90].forEach((yVal) => {
+      const y = yScale.getPixelForValue(yVal);
+      if (isNaN(y)) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      ctx.lineWidth = 1.0; // 얇게
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.restore();
+    });
+  },
+};
+
+function buildRotationChart() {
   const parsed = state.rot;
   const el = document.getElementById("chart-rotation");
   if (!parsed || !el) return;
 
   const ctx = el.getContext("2d");
-  if (state.chartRotation){ state.chartRotation.destroy(); state.chartRotation=null; }
+  if (state.chartRotation) { state.chartRotation.destroy(); state.chartRotation = null; }
 
-  // (x,y) 페어 구성 — x축을 확실하게 "프레임"으로 고정
-  const S = parsed.frames.map((f,i)=> ({ x: Number(f), y: Number(parsed.shoulder[i] ?? 0) }));
-  const H = parsed.frames.map((f,i)=> ({ x: Number(f), y: Number(parsed.hip[i] ?? 0) }));
-  const SEP = parsed.separation ? parsed.frames.map((f,i)=> ({ x:Number(f), y:Number(parsed.separation[i]??0) })) : null;
+  const S = parsed.frames.map((f, i) => ({ x: Number(f), y: Number(parsed.shoulder[i] ?? 0) }));
+  const H = parsed.frames.map((f, i) => ({ x: Number(f), y: Number(parsed.hip[i] ?? 0) }));
+
+  let SEP = null, sepMaxPt = null;
+  if (parsed.separation && parsed.separation.length) {
+    SEP = parsed.frames.map((f, i) => ({ x: Number(f), y: Number(parsed.separation[i] ?? 0) }));
+    let maxVal = -Infinity, maxIdx = -1;
+    for (let i = 0; i < parsed.separation.length; i++) {
+      const v = +parsed.separation[i];
+      if (v > maxVal) { maxVal = v; maxIdx = i; }
+    }
+    if (maxIdx >= 0) sepMaxPt = { x: +parsed.frames[maxIdx], y: +parsed.separation[maxIdx] };
+  }
 
   state.chartRotation = new Chart(ctx, {
     type: "line",
     data: {
       datasets: [
-        { label:"Shoulder (deg)", data:S, pointRadius:0, borderWidth:2 },
-        { label:"Hip (deg)",       data:H, pointRadius:0, borderWidth:2 },
-        ...(SEP? [{ label:"Separation (deg)", data:SEP, pointRadius:0, borderWidth:2 }]:[])
+        { label: "Shoulder (deg)", data: S, pointRadius: 0, borderWidth: 2, borderColor: "#60a5fa", backgroundColor: "#60a5fa" },
+        { label: "Hip (deg)",      data: H, pointRadius: 0, borderWidth: 2, borderColor: "#34d399", backgroundColor: "#34d399"},
+        ...(SEP ? [{
+          label: "Separation (deg)",
+          data: SEP,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderColor: "#9ca3af",
+          backgroundColor: "#9ca3af"
+        }] : []),
+        ...(sepMaxPt ? [{
+          type: "scatter",
+          label: "Separation Max",
+          data: [sepMaxPt],
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2,
+          borderColor: "#f59e0b",
+          backgroundColor: "#fbbf24",
+          showLine: false
+        }] : [])
       ]
     },
     options: {
-      responsive:true, animation:false, parsing:false, maintainAspectRatio:false,
-      plugins:{ legend:{display:true}, tooltip:{enabled:true} },
-      scales:{
-        x:{ type:"linear", title:{ display:true, text:"Frame" } },
-        y:{ type:"linear", title:{ display:true, text:"Angle (deg)" } }
+      responsive: true,
+      animation: false,
+      parsing: false,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true }, tooltip: { enabled: true } },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "Frame" },
+          grid: { color: "rgba(255,255,255,0.08)", borderDash: [4, 4] }
+        },
+        y: {
+          type: "linear",
+          title: { display: true, text: "Angle (deg)" },
+          grid: { color: "rgba(255,255,255,0.08)", borderDash: [4, 4] }
+        }
       },
-      onClick: async (evt)=>{
-        // 가까운 데이터 포인트 찾기
-        const p = state.chartRotation.getElementsAtEventForMode(evt, 'nearest', { intersect:false }, true)[0];
-        if (!p) return;
-        const ds = state.chartRotation.data.datasets[p.datasetIndex].data;
-        const point = ds[p.index];
+      onClick: async (evt) => {
+        const elems = state.chartRotation.getElementsAtEventForMode(evt, "nearest", { intersect: false }, true);
+        if (!elems?.length) return;
+        const { datasetIndex, index } = elems[0];
+        const ds = state.chartRotation.data.datasets[datasetIndex].data;
+        const point = ds[index];
         const frame = Number(point.x);
         const t = (frame - 1) / (state.rot?.fps || state.fps || 30);
 
-        // 1) shoulder_hip_rotation 오버레이 적용 + 시킹
         await gotoTimeAndOverlay(t, "shoulder_hip_rotation.mp4");
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-        // 2) 스냅샷 생성
         try {
           const dataUrl = await captureCompositePNG();
           setRotationPreview(dataUrl, t, frame);
-        } catch(e){
+        } catch (e) {
           console.warn("스냅샷 실패:", e);
           setRotationPreview(null, t, frame);
         }
       }
-    }
+    },
+    plugins: [ hLinesPlugin ]
   });
 }
 
-// ================== 센터시프트 차트 (옵션) ==================
-function buildCenterChart(){
-  const parsed = state.center;
-  const el = document.getElementById("chart-center");
-  if (!parsed || !el) return;
-
-  const ctx=el.getContext("2d");
-  if (state.chartCenter){ state.chartCenter.destroy(); state.chartCenter=null; }
-
-  const L = parsed.left ? parsed.frames.map((f,i)=> ({x:Number(f), y:Number(parsed.left[i] ?? 0)})) : [];
-  const R = parsed.right? parsed.frames.map((f,i)=> ({x:Number(f), y:Number(parsed.right[i]?? 0)})) : [];
-
-  state.chartCenter = new Chart(ctx, {
-    type:"line",
-    data:{ datasets:[
-      { label:"Left ratio",  data:L, pointRadius:0, borderWidth:2 },
-      { label:"Right ratio", data:R, pointRadius:0, borderWidth:2 }
-    ]},
-    options:{
-      responsive:true, animation:false, parsing:false, maintainAspectRatio:false,
-      plugins:{ legend:{display:true}, tooltip:{enabled:true} },
-      scales:{
-        x:{ type:"linear", title:{display:true, text:"Frame"} },
-        y:{ type:"linear", title:{display:true, text:"Ratio"} }
-      }
-    }
-  });
-}
-
-// ================== 그래프 → 시킹 & 스냅샷 ==================
+// ================== 그래프 → 시킹 & 스냅샷(회전) ==================
 async function gotoTimeAndOverlay(tSec, overlayFile){
   const video=state.video;
   if (!video) return;
@@ -509,16 +537,12 @@ async function captureCompositePNG() {
   const overlay = state.overlayVid;
   if (!video) throw new Error("video 없음");
 
-  // 메인 뷰가 display:none이면 getBoundingClientRect()가 0이므로,
-  // 비디오의 고유 해상도(videoWidth/Height)로 안전하게 캔버스 크기를 잡습니다.
   const rect = video.getBoundingClientRect();
   const vw = video.videoWidth || 1280;
   const vh = video.videoHeight || 720;
 
   let w = Math.floor(rect.width)  || vw;
   let h = Math.floor(rect.height) || vh;
-
-  // 혹시 하나만 0인 경우 비율 보정
   if (!w && h) w = Math.round(h * (vw / vh));
   if (!h && w) h = Math.round(w * (vh / vw));
 
@@ -529,14 +553,9 @@ async function captureCompositePNG() {
   const ctx = off.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // 본편
-  if (video.readyState >= 2) {
-    ctx.drawImage(video, 0, 0, w, h);
-  } else {
-    throw new Error("video not ready");
-  }
+  if (video.readyState >= 2) ctx.drawImage(video, 0, 0, w, h);
+  else throw new Error("video not ready");
 
-  // 오버레이
   if (overlay && overlay.src && overlay.readyState >= 2) {
     const opacity = Number(overlay.style.opacity || "0.7");
     if (opacity > 0) {
@@ -547,7 +566,6 @@ async function captureCompositePNG() {
     }
   }
 
-  // 라벨
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,.7)";
   ctx.fillRect(8, 8, 240, 30);
@@ -588,156 +606,202 @@ function setRotationPreview(dataUrl, t, frame){
   state.lastSnapshot = { dataUrl, t, frame };
 }
 
-// === [추가] 차트 플러그인: y=0°, y=90° 실선 & sep max 라벨(선택) ===
-const hLinesPlugin = {
-  id: "hLines",
-  afterDraw(chart, args, opts) {
-    const { ctx, chartArea, scales } = chart;
-    if (!scales?.y) return;
-    const yScale = scales.y;
-
-    // y=0, y=90 실선
-    [0, 90].forEach((yVal) => {
-      const y = yScale.getPixelForValue(yVal);
-      if (isNaN(y)) return;
-      ctx.save();
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 1.0;
-      ctx.setLineDash([]); // 실선
-      ctx.beginPath();
-      ctx.moveTo(chartArea.left, y);
-      ctx.lineTo(chartArea.right, y);
-      ctx.stroke();
-      ctx.restore();
-    });
-
-    // (선택) 옵션으로 텍스트 라벨도 그릴 수 있음
-    if (opts?.labelAt !== undefined) {
-      const y = yScale.getPixelForValue(opts.labelAt);
-      if (!isNaN(y)) {
-        ctx.save();
-        ctx.fillStyle = "rgba(255,255,255,0.8)";
-        ctx.font = "12px system-ui, sans-serif";
-        ctx.fillText(`${opts.labelAt}°`, chartArea.left + 6, y - 4);
-        ctx.restore();
-      }
-    }
-  },
+// ================== 무게 중심 이동: 스냅샷/슬라이더/비율바 ==================
+const centerState = {
+  ready: false,
+  // 데이터
+  frames: [],
+  left: [],
+  right: [],
+  fps: 30,
+  // 숨김 비디오
+  baseVideo: null,
+  overlayVideo: null,
+  // 요소
+  canvas: null, ctx: null, imgEl: null, slider: null,
+  frameLabel: null, ratioText: null, leftBar: null, rightBar: null,
+  // 요청 토큰
+  reqId: 0
 };
 
-// === [교체] 회전 차트 빌더 ===
-function buildRotationChart() {
-  const parsed = state.rot;
-  const el = document.getElementById("chart-rotation");
-  if (!parsed || !el) return;
-
-  const ctx = el.getContext("2d");
-  if (state.chartRotation) {
-    state.chartRotation.destroy();
-    state.chartRotation = null;
-  }
-
-  // (x,y) 페어 - x: frame, y: angle
-  const S = parsed.frames.map((f, i) => ({ x: +f, y: +parsed.shoulder[i] ?? 0 }));
-  const H = parsed.frames.map((f, i) => ({ x: +f, y: +parsed.hip[i] ?? 0 }));
-
-  // separation(회색) + 최대값 표시
-  let SEP = null, sepMaxPt = null;
-  if (parsed.separation && parsed.separation.length) {
-    SEP = parsed.frames.map((f, i) => ({ x: +f, y: +parsed.separation[i] ?? 0 }));
-    let maxVal = -Infinity, maxIdx = -1;
-    for (let i = 0; i < parsed.separation.length; i++) {
-      const v = +parsed.separation[i];
-      if (v > maxVal) { maxVal = v; maxIdx = i; }
-    }
-    if (maxIdx >= 0) {
-      sepMaxPt = { x: +parsed.frames[maxIdx], y: +parsed.separation[maxIdx] };
-    }
-  }
-
-  state.chartRotation = new Chart(ctx, {
-    type: "line",
-    data: {
-      datasets: [
-        { label: "Shoulder (deg)", data: S, pointRadius: 0, borderWidth: 2, borderColor: "#60a5fa", backgroundColor: "#60a5fa" },
-        { label: "Hip (deg)",      data: H, pointRadius: 0, borderWidth: 2, borderColor: "#34d399", backgroundColor: "#34d399"},
-        ...(SEP ? [{
-          label: "Separation (deg)",
-          data: SEP,
-          pointRadius: 0,
-          borderWidth: 2,
-          borderColor: "#9ca3af",        // 회색
-          backgroundColor: "#9ca3af"
-        }] : []),
-        ...(sepMaxPt ? [{
-          type: "scatter",
-          label: "Separation Max",
-          data: [sepMaxPt],
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          borderWidth: 2,
-          borderColor: "#f59e0b",        // 강조색(앰버)
-          backgroundColor: "#fbbf24",
-          showLine: false
-        }] : [])
-      ]
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      parsing: false,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true },
-        tooltip: { enabled: true }
-      },
-      scales: {
-        x: {
-          type: "linear",
-          title: { display: true, text: "Frame" },
-          grid: {
-            color: "rgba(255,255,255,0.08)",
-            borderDash: [4, 4] // 점선 격자
-          }
-        },
-        y: {
-          type: "linear",
-          title: { display: true, text: "Angle (deg)" },
-          grid: {
-            color: "rgba(255,255,255,0.08)",
-            borderDash: [4, 4] // 점선 격자
-          }
-        }
-      },
-      // 차트 클릭 → 프레임 이동 & 스냅샷
-      onClick: async (evt) => {
-        const elems = state.chartRotation.getElementsAtEventForMode(evt, "nearest", { intersect: false }, true);
-        if (!elems?.length) return;
-        const { datasetIndex, index } = elems[0];
-        const ds = state.chartRotation.data.datasets[datasetIndex].data;
-        const point = ds[index];
-        const frame = Number(point.x);
-        const t = (frame - 1) / (state.rot?.fps || state.fps || 30);
-
-        // 1) 오버레이 적용 + 시킹
-        await gotoTimeAndOverlay(t, "shoulder_hip_rotation.mp4");
-
-        // 2) 렌더 타이밍 보정 (2프레임 대기)
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-        // 3) 스냅샷
-        try {
-          const dataUrl = await captureCompositePNG();
-          setRotationPreview(dataUrl, t, frame);
-        } catch (e) {
-          console.warn("스냅샷 실패:", e);
-          setRotationPreview(null, t, frame);
-        }
-      }
-    },
-    plugins: [
-      // y=0°, 90° 실선
-      { ...hLinesPlugin, labelAt: undefined }
-    ]
+function wireCenterPreviewButtons(){
+  const btn = document.getElementById("btnSaveCenterPng");
+  if (btn) btn.addEventListener("click", ()=>{
+    const img = document.getElementById("centerPreview");
+    if (!img?.src) return;
+    const a = document.createElement("a");
+    const {playerId, reportId} = state.current;
+    const frame = document.getElementById("centerFrameLabel")?.textContent || "frame";
+    a.href = img.src;
+    a.download = `${playerId||"player"}_${reportId||"report"}_${frame}_center.png`;
+    a.click();
   });
+}
+
+function buildHiddenVideo(src) {
+  const v = document.createElement("video");
+  v.crossOrigin = "anonymous";
+  v.playsInline = true;
+  v.preload = "auto";
+  v.muted = true;
+  v.style.display = "none";
+  document.body.appendChild(v);
+  v.src = src;
+  return v;
+}
+
+function initCenterView(){
+  // 이미 초기화되어 있고, 같은 리포트면 슬라이더만 갱신
+  const parsed = state.center;
+  if (!parsed) { console.warn("center_shift 데이터가 없습니다."); return; }
+
+  // 요소
+  centerState.canvas     = document.getElementById("centerCanvas");
+  centerState.ctx        = centerState.canvas.getContext("2d");
+  centerState.imgEl      = document.getElementById("centerPreview");
+  centerState.slider     = document.getElementById("centerFrame");
+  centerState.frameLabel = document.getElementById("centerFrameLabel");
+  centerState.ratioText  = document.getElementById("centerRatioText");
+  centerState.leftBar    = document.getElementById("centerLeft");
+  centerState.rightBar   = document.getElementById("centerRight");
+
+  // 데이터
+  centerState.frames = parsed.frames.slice();
+  centerState.left   = parsed.left.slice();
+  centerState.right  = parsed.right.slice();
+  centerState.fps    = state.fps || 30;
+
+  // 슬라이더 범위
+  const firstF = centerState.frames[0] ?? 1;
+  const lastF  = centerState.frames[centerState.frames.length - 1] ?? firstF;
+  centerState.slider.min = String(firstF);
+  centerState.slider.max = String(lastF);
+  centerState.slider.step = "1";
+  centerState.slider.value = String(firstF);
+  centerState.frameLabel.textContent = String(firstF);
+  text("centerMeta", String(firstF));
+
+  // 비디오 소스 준비(숨김)
+  const { playerId, reportId } = state.current;
+  const base = joinUrl("./reports", playerId, reportId);
+  const videoSrc   = state.summary?.assets?.report_video || joinUrl(base, "assets", "report_video.mp4");
+  const overlaySrc = joinUrl(base, "assets", "center_shift.mp4");
+
+  // 기존 숨김 비디오 클린업
+  if (centerState.baseVideo) centerState.baseVideo.remove();
+  if (centerState.overlayVideo) centerState.overlayVideo.remove();
+
+  centerState.baseVideo    = buildHiddenVideo(videoSrc);
+  centerState.overlayVideo = buildHiddenVideo(overlaySrc);
+
+  // 메타데이터 로드 후 캔버스 크기 세팅
+  const ensureMeta = Promise.all([
+    new Promise(res => centerState.baseVideo.onloadedmetadata = res),
+    new Promise(res => centerState.overlayVideo.onloadedmetadata = res),
+  ]);
+
+  ensureMeta.then(()=>{
+    // 캔버스 크기: 원본 해상도 기준 (CSS는 자동으로 맞춤)
+    const vw = centerState.baseVideo.videoWidth  || 1280;
+    const vh = centerState.baseVideo.videoHeight || 720;
+    const dpr = window.devicePixelRatio || 1;
+    centerState.canvas.width = Math.floor(vw * dpr);
+    centerState.canvas.height= Math.floor(vh * dpr);
+    centerState.canvas.style.width = vw + "px";
+    centerState.canvas.style.height= vh + "px";
+    centerState.ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    centerState.ready = true;
+
+    // 초기 프레임 그리기
+    drawCenterFrame(firstF);
+    updateCenterBarByFrame(firstF);
+  });
+
+  // rAF 디바운스
+  let scheduled = false;
+  centerState.slider.addEventListener("input", ()=>{
+    if (!centerState.ready) return;
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(()=>{
+      scheduled = false;
+      const f = Number(centerState.slider.value);
+      centerState.frameLabel.textContent = String(f);
+      text("centerMeta", String(f));
+      drawCenterFrame(f);
+      updateCenterBarByFrame(f);
+    });
+  });
+}
+
+function frameToTime_center(frame) {
+  const f = Math.max(1, Number(frame || 1));
+  return (f - 1) / (centerState.fps || 30);
+}
+function seekBoth_center(timeSec){
+  return new Promise((resolve)=>{
+    let pending=2;
+    const done=()=>{ if(--pending===0) resolve(); };
+    const b=centerState.baseVideo, o=centerState.overlayVideo;
+
+    const sb=()=>{ b.removeEventListener("seeked",sb); done(); };
+    const so=()=>{ o.removeEventListener("seeked",so); done(); };
+
+    b.pause(); o.pause();
+    b.addEventListener("seeked", sb, {once:true});
+    o.addEventListener("seeked", so, {once:true});
+
+    if ("fastSeek" in HTMLMediaElement.prototype && typeof b.fastSeek==="function") {
+      try { b.fastSeek(timeSec); } catch { b.currentTime=timeSec; }
+    } else b.currentTime=timeSec;
+
+    if ("fastSeek" in HTMLMediaElement.prototype && typeof o.fastSeek==="function") {
+      try { o.fastSeek(timeSec); } catch { o.currentTime=timeSec; }
+    } else o.currentTime=timeSec;
+  });
+}
+async function drawCenterFrame(frame){
+  centerState.reqId += 1;
+  const myReq = centerState.reqId;
+
+  const t = frameToTime_center(frame);
+  await seekBoth_center(t);
+  if (myReq !== centerState.reqId) return; // 최신 요청만 그리기
+
+  const cvs = centerState.canvas;
+  const ctx = centerState.ctx;
+  const b = centerState.baseVideo;
+  const o = centerState.overlayVideo;
+
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  // 원본
+  if (b.readyState >= 2) ctx.drawImage(b, 0, 0, cvs.width, cvs.height);
+  // 오버레이: lighten 근사
+  if (o.readyState >= 2) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.7;
+    ctx.drawImage(o, 0, 0, cvs.width, cvs.height);
+    ctx.restore();
+  }
+
+  // IMG에 주입 (JPEG로 용량↓, 표시속도↑)
+  const dataUrl = cvs.toDataURL("image/jpeg", 0.85);
+  centerState.imgEl.src = dataUrl;
+}
+function updateCenterBar(leftRatio, rightRatio){
+  const L = Math.max(0, Number(leftRatio || 0));
+  const R = Math.max(0, Number(rightRatio || 0));
+  const sum = L + R || 10;
+  const lp = (L / sum) * 100;
+  const rp = 100 - lp;
+  centerState.leftBar.style.width  = lp + "%";
+  centerState.rightBar.style.width = rp + "%";
+  centerState.ratioText.textContent = `Left ${L.toFixed(1)} : Right ${R.toFixed(1)} (총 10)`;
+}
+function updateCenterBarByFrame(frame){
+  // frame은 1부터 시작하므로 index = frame-1
+  const idx = Math.max(0, Math.min(centerState.frames.length - 1, Number(frame) - 1));
+  updateCenterBar(centerState.left[idx], centerState.right[idx]);
 }
