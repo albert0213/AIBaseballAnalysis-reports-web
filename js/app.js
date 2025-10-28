@@ -9,7 +9,6 @@ async function fetchJSON(url, label = "fetchJSON") {
     throw new Error(`JSON 로드 실패: ${url} (${err.message})`);
   }
 }
-
 function text(elId, v) {
   const el = document.getElementById(elId);
   if (el) el.textContent = v ?? "-";
@@ -25,6 +24,21 @@ function joinUrl(...parts) {
     .join("/")
     .replace(/([^:])\/{2,}/g, "$1/");
 }
+function waitEvent(target, event, timeoutMs = 1500) {
+  return new Promise((resolve, reject) => {
+    let to = null;
+    const on = () => {
+      clearTimeout(to);
+      target.removeEventListener(event, on);
+      resolve();
+    };
+    target.addEventListener(event, on, { once: true });
+    to = setTimeout(() => {
+      target.removeEventListener(event, on);
+      reject(new Error(`event '${event}' timeout`));
+    }, timeoutMs);
+  });
+}
 
 // ================== 글로벌 상태 ==================
 const state = {
@@ -38,7 +52,9 @@ const state = {
   angleChart: null,
   playersById: {},
   usingRVFC: false,
-  rate: 1 // ▶ 현재 재생 속도
+  rate: 1,                 // ▶ 현재 재생 속도
+  parsedAngles: null,      // {frames, time_s, shoulder, hip, separation}
+  lastSnapshot: null       // {dataUrl, t, frame}
 };
 
 // ================== 초기 로드 ==================
@@ -50,6 +66,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
   wireOverlayControls();
   wirePlaybackControls();
+  wirePreviewControls();
   await loadIndex();
 });
 
@@ -59,7 +76,6 @@ async function loadPlayers() {
   for (const p of players) map[p.id] = p;
   state.playersById = map;
 }
-
 function playerLabel(id) {
   const p = state.playersById[id];
   if (!p) return id;
@@ -83,7 +99,10 @@ function renderReportList(index) {
     const teamName = p?.team || "팀 미지정";
     if (!teams[teamName]) teams[teamName] = { players: {} };
     if (!teams[teamName].players[pid]) {
-      teams[teamName].players[pid] = { player: p || { id: pid, name: pid, number: "-", team: teamName }, items: [] };
+      teams[teamName].players[pid] = {
+        player: p || { id: pid, name: pid, number: "-", team: teamName },
+        items: []
+      };
     }
     teams[teamName].players[pid].items.push(item);
   }
@@ -99,7 +118,8 @@ function renderReportList(index) {
 
     const teamSummary = document.createElement("summary");
     const teamCount = teamPlayers.reduce((sum, tp) => sum + tp.items.length, 0);
-    teamSummary.innerHTML = `<span class="group-title">🏷️ ${tName}</span><span class="group-count">${teamCount}</span>`;
+    teamSummary.innerHTML =
+      `<span class="group-title">🏷️ ${tName}</span><span class="group-count">${teamCount}</span>`;
     teamDetails.appendChild(teamSummary);
 
     teamPlayers.sort((a, b) => {
@@ -117,7 +137,8 @@ function renderReportList(index) {
 
       const pLabel = `${p?.name ?? p.id} ${p?.number ? `(#${p.number})` : ""} ${p?.id ? `[${p.id}]` : ""}`;
       const pSummary = document.createElement("summary");
-      pSummary.innerHTML = `<span class="group-title">👤 ${pLabel}</span><span class="group-count">${tp.items.length}</span>`;
+      pSummary.innerHTML =
+        `<span class="group-title">👤 ${pLabel}</span><span class="group-count">${tp.items.length}</span>`;
       playerDetails.appendChild(pSummary);
 
       const ul = document.createElement("div");
@@ -130,11 +151,9 @@ function renderReportList(index) {
         div.addEventListener("click", () => openReport(item.player_id, item.report_id));
         ul.appendChild(div);
       });
-
       playerDetails.appendChild(ul);
       teamDetails.appendChild(playerDetails);
     }
-
     list.appendChild(teamDetails);
   }
 }
@@ -144,7 +163,7 @@ async function loadIndex() {
     const idx = await fetchJSON("./reports/index.json", "index");
     renderReportList(idx);
   } catch (e) {
-    document.getElementById("report-list").innerHTML = `<em>reports/index.json 로드 실패</em>`;
+    document.getElementById("report-list").innerHTML = "<em>reports/index.json 로드 실패</em>";
     console.error(e);
   }
 }
@@ -152,29 +171,30 @@ async function loadIndex() {
 // ================== 리포트 오픈 ==================
 async function openReport(playerId, reportId) {
   state.current = { playerId, reportId };
-
   const base = joinUrl("./reports", playerId, reportId);
   const summaryUrl = joinUrl(base, "summary.json");
   const seriesUrl  = joinUrl(base, "series.json");
-
   console.log("[openReport] start", { playerId, reportId, summaryUrl, seriesUrl });
 
   try {
     const summary = await fetchJSON(summaryUrl, "summary");
-    const series  = await fetchJSON(seriesUrl, "series");
+    const series  = await fetchJSON(seriesUrl,  "series");
+
     state.summary = summary;
     state.series  = series;
-    state.fps     = Number(series?.fps) || 30;
+
+    // fps: meta.fps 또는 series.fps
+    state.fps = Number(series?.meta?.fps || series?.fps) || 30;
 
     // 카드
     text("card-player", playerId);
     const p = state.playersById[playerId];
     text("card-player-name", p ? p.name : "-");
-    text("card-team-num", p ? `${p.team || "-"} / #${p.number ?? "-"}` : "-");
+    text("card-team-num",   p ? `${p.team || "-"} / #${p.number ?? "-"}` : "-");
     text("card-report", reportId);
     text("card-swing-type", summary?.swing_type ?? "-");
-    text("card-sep", summary?.separation_deg ?? summary?.separationAngle ?? "-");
-    text("card-stride", summary?.stride_cm ?? summary?.strideLength ?? "-");
+    text("card-sep",   summary?.separation_deg ?? summary?.separationAngle ?? "-");
+    text("card-stride",summary?.stride_cm ?? summary?.strideLength ?? "-");
 
     setRaw("raw-summary", summary);
     setRaw("raw-series", series);
@@ -192,22 +212,28 @@ async function openReport(playerId, reportId) {
     overlayVid.style.display = "none";
     state.overlayVid = overlayVid;
 
-    // 비디오 메타데이터 로드 후 레이아웃/동기화 준비
+    // 메타데이터 후 레이아웃/동기화 준비
     video.onloadedmetadata = () => {
       lockAspectRatio(videoWrap, video);
       syncLayerSizes(video, overlayVid, document.getElementById("overlay"));
       setupVideoSync(); // 1회 바인딩
-      // ▶ 초기 재생 속도 적용
-      setPlaybackRate(state.rate);
-      applyOverlaySelection(); // 현재 선택된 오버레이 반영
-      // 초기 seek range
+      setPlaybackRate(state.rate); // ▶ 초기 재생 속도 반영
+      applyOverlaySelection();     // 현재 선택된 오버레이 로드
+
+      // seek range
       const seek = document.getElementById("seek");
       seek.min = 0;
       seek.max = Math.floor(video.duration * 1000);
       seek.value = 0;
     };
 
-    buildCharts(series);
+    // 각도 차트
+    state.parsedAngles = parseAnglesFromSeries(series, state.fps);
+    buildCharts(state.parsedAngles);
+
+    // 프리뷰 리셋
+    setPreview(null, null, null);
+
   } catch (e) {
     console.error("openReport error", e);
     alert(`리포트 로드 실패:\n${e.message}\n(자세한 내용은 콘솔을 확인하세요)`);
@@ -221,7 +247,6 @@ function lockAspectRatio(container, video) {
   const ratio = (vw / vh).toFixed(6);
   container.style.setProperty("--video-aspect", ratio);
 }
-
 function syncLayerSizes(video, overlayVid, canvas) {
   const rect = video.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -238,9 +263,8 @@ function syncLayerSizes(video, overlayVid, canvas) {
 // ================== 오버레이 비디오 컨트롤 ==================
 function wireOverlayControls() {
   const sel = document.getElementById("overlaySelect");
-  const op  = document.getElementById("overlayOpacity");
+  const op = document.getElementById("overlayOpacity");
   const blend = document.getElementById("overlayBlend");
-
   sel.onchange = applyOverlaySelection;
   op.oninput = () => {
     const v = Number(op.value);
@@ -250,11 +274,10 @@ function wireOverlayControls() {
     if (state.overlayVid) state.overlayVid.style.mixBlendMode = blend.value;
   };
 }
-
 function applyOverlaySelection() {
   const sel = document.getElementById("overlaySelect");
   const file = sel.value;
-  const vid  = state.overlayVid;
+  const vid = state.overlayVid;
   if (!vid) return;
 
   if (!file) {
@@ -279,17 +302,15 @@ function applyOverlaySelection() {
     vid.style.display = "none";
     alert(`오버레이 영상 로드 실패: ${src}`);
   };
-
   vid.src = src;
   vid.style.display = "block";
 
   // 스타일 초기값
-  const op  = document.getElementById("overlayOpacity");
+  const op = document.getElementById("overlayOpacity");
   vid.style.opacity = (Number(op.value) / 100).toFixed(2);
   const blend = document.getElementById("overlayBlend");
   vid.style.mixBlendMode = blend.value;
 }
-
 function trySyncOverlayVideo() {
   if (!state.video || !state.overlayVid) return;
   const base = state.video;
@@ -324,7 +345,6 @@ function wirePlaybackControls() {
     if (Number(b.dataset.rate) === state.rate) b.classList.add("active");
   });
 }
-
 function setPlaybackRate(r) {
   if (!r || r <= 0) r = 1;
   state.rate = r;
@@ -346,9 +366,7 @@ function setupVideoSync() {
   const seek = document.getElementById("seek");
 
   // 반응형 리사이즈
-  function onResize() {
-    syncLayerSizes(video, overlayVid, canvas);
-  }
+  function onResize() { syncLayerSizes(video, overlayVid, canvas); }
   window.addEventListener("resize", onResize);
 
   // 시킹
@@ -366,8 +384,6 @@ function setupVideoSync() {
   video.addEventListener("ratechange", () => {
     state.rate = video.playbackRate || 1;
     if (overlayVid.playbackRate !== state.rate) overlayVid.playbackRate = state.rate;
-    const sel = document.getElementById("rateSelect");
-    if (sel && sel.value !== String(state.rate)) sel.value = String(state.rate);
   });
 
   // RVFC 지원 여부
@@ -375,11 +391,11 @@ function setupVideoSync() {
 
   function drawOverlayCanvas(tSec) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // TODO: 좌표/스켈레톤 드로잉 연결 지점
+    // (여기에 좌표/스켈레톤 드로잉을 연결할 수 있음)
     ctx.save();
     ctx.globalAlpha = 0.8;
     ctx.fillStyle = "#000";
-    ctx.fillRect(8, 8, 160, 30);
+    ctx.fillRect(8, 8, 180, 30);
     ctx.fillStyle = "#fff";
     ctx.font = "14px system-ui, sans-serif";
     ctx.fillText(`t = ${tSec.toFixed(2)}s @ ${state.rate}x`, 16, 28);
@@ -392,7 +408,7 @@ function setupVideoSync() {
   }
 
   if (state.usingRVFC) {
-    const loop = (now, meta) => {
+    const loop = (_now, meta) => {
       drawOverlayCanvas(meta.mediaTime);
       trySyncOverlayVideo();
       video.requestVideoFrameCallback(loop);
@@ -406,7 +422,97 @@ function setupVideoSync() {
   }
 }
 
-// ================== 그래프 ==================
+// ================== 각도 데이터 파싱/차트 ==================
+function parseAnglesFromSeries(series, fpsFallback = 30) {
+  // 우선 신규 스키마: series.series.shoulder_hip_rotation.*
+  const fps = Number(series?.meta?.fps || series?.fps) || fpsFallback;
+  const block = series?.series?.shoulder_hip_rotation;
+  if (block?.frame && block?.shoulder_deg && block?.hip_deg) {
+    const frames = block.frame;
+    const time_s = frames.map(f => (Number(f) - 1) / fps);
+    const shoulder = block.shoulder_deg;
+    const hip = block.hip_deg;
+    const separation = Array.isArray(block.separation_deg) ? block.separation_deg : null;
+    return { frames, time_s, shoulder, hip, separation, fps };
+  }
+
+  // 구형(예비) 스키마: series.angles + series.time_s
+  const time_s = series?.time_s;
+  const shoulder = series?.angles?.shoulder ?? null;
+  const hip = series?.angles?.hip ?? null;
+  const separation = series?.angles?.separation ?? null;
+  const frames = time_s?.map((t, i) => i + 1) ?? null;
+  return { frames, time_s, shoulder, hip, separation, fps };
+}
+
+function buildCharts(parsed) {
+  const el = document.getElementById("chart-angles");
+  const ctx = el.getContext("2d");
+
+  if (state.angleChart) {
+    state.angleChart.destroy();
+    state.angleChart = null;
+  }
+  if (!parsed || !parsed.shoulder || !parsed.hip) {
+    ctx.clearRect(0, 0, el.width, el.height);
+    return;
+  }
+
+  const labels = parsed.time_s ?? parsed.frames ?? parsed.shoulder.map((_, i) => i);
+  const datasets = [
+    { label: "Shoulder (deg)", data: parsed.shoulder, pointRadius: 0, borderWidth: 2 },
+    { label: "Hip (deg)",       data: parsed.hip,      pointRadius: 0, borderWidth: 2 }
+  ];
+  if (parsed.separation && Array.isArray(parsed.separation)) {
+    datasets.push({ label: "Separation (deg)", data: parsed.separation, pointRadius: 0, borderWidth: 2 });
+  }
+
+  state.angleChart = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      animation: false,
+      parsing: false,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true },
+        tooltip: { enabled: true }
+      },
+      scales: { x: { display: true }, y: { display: true } },
+      onClick: async (evt) => {
+        // x 픽셀 → 인덱스 → 시간/프레임
+        const scaleX = state.angleChart.scales.x;
+        const xVal = scaleX.getValueForPixel(evt.x);
+        let idx = Math.round(xVal);
+        idx = Math.max(0, Math.min(labels.length - 1, idx));
+
+        let t = 0;
+        let frame = 1;
+        if (Array.isArray(parsed.time_s)) {
+          t = parsed.time_s[idx];
+          frame = parsed.frames ? parsed.frames[idx] : Math.round(t * parsed.fps) + 1;
+        } else {
+          frame = parsed.frames[idx];
+          t = (frame - 1) / parsed.fps;
+        }
+
+        // 1) 영상/오버레이 시킹
+        await gotoTimeAndOverlay(t, "shoulder_hip_rotation.mp4");
+
+        // 2) 현재 프레임 합성 이미지 프리뷰 생성
+        try {
+          const dataUrl = await captureCompositePNG();
+          setPreview(dataUrl, t, frame);
+        } catch (e) {
+          console.warn("스냅샷 실패:", e);
+          setPreview(null, t, frame);
+        }
+      }
+    }
+  });
+}
+
 function nearestIndexByTime(labels, tSec) {
   if (!Array.isArray(labels) || !labels.length) return 0;
   let lo = 0, hi = labels.length - 1, best = 0;
@@ -418,78 +524,138 @@ function nearestIndexByTime(labels, tSec) {
   }
   return best;
 }
-
-function buildCharts(series) {
-  const el = document.getElementById("chart-angles");
-  const ctx = el.getContext("2d");
-  if (state.angleChart) {
-    state.angleChart.destroy();
-    state.angleChart = null;
-  }
-  if (!series || !series.angles) {
-    ctx.clearRect(0, 0, el.width, el.height);
-    return;
-  }
-
-  const labels = Array.isArray(series.time_s) ? series.time_s : null;
-  const keys = Object.keys(series.angles);
-  const datasets = [];
-
-  const priority = ["separation","shoulder","pelvis","opening"];
-  const sortedKeys = keys.sort((a,b)=>{
-    const pa = priority.findIndex(p=>a.includes(p));
-    const pb = priority.findIndex(p=>b.includes(p));
-    return (pa<0?99:pa) - (pb<0?99:pb);
-  });
-
-  for (const k of sortedKeys) {
-    const arr = series.angles[k];
-    if (!Array.isArray(arr) || !arr.length) continue;
-    datasets.push({
-      label: k,
-      data: arr,
-      pointRadius: 0,
-      borderWidth: 2
-    });
-    if (datasets.length >= 3) break;
-  }
-
-  if (!datasets.length) return;
-
-  state.angleChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: labels || datasets[0].map((_, i) => i),
-      datasets
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      parsing: false,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: true }, tooltip: { enabled: true } },
-      scales: { x: { display: true }, y: { display: true } },
-      onClick: (evt) => {
-        if (!labels) return;
-        const scaleX = state.angleChart.scales.x;
-        const xVal = scaleX.getValueForPixel(evt.x);
-        const idx = Math.max(0, Math.min(labels.length - 1, Math.round(xVal)));
-        const t = labels[idx];
-        if (typeof t === "number" && state.video) {
-          state.video.currentTime = t;
-          trySyncOverlayVideo();
-        }
-      }
-    }
-  });
-}
-
 function updateChartCursor(tSec) {
   const chart = state.angleChart;
-  if (!chart) return;
+  const parsed = state.parsedAngles;
+  if (!chart || !parsed) return;
+
   const labels = chart.data.labels;
   if (!Array.isArray(labels) || !labels.length) return;
-  const idx = nearestIndexByTime(labels, tSec);
+
+  let idx = 0;
+  if (Array.isArray(parsed.time_s)) {
+    idx = nearestIndexByTime(parsed.time_s, tSec);
+  } else {
+    const frame = Math.round(tSec * parsed.fps) + 1;
+    idx = Math.max(0, Math.min((parsed.frames?.length ?? 1) - 1, frame - 1));
+  }
   chart.setActiveElements([{ datasetIndex: 0, index: idx }]);
   chart.update("none");
 }
+
+// ================== 그래프 → 프레임 시킹 & 합성 ==================
+async function gotoTimeAndOverlay(tSec, overlayFile) {
+  const video = state.video;
+  if (!video) return;
+
+  // 오버레이를 shoulder_hip_rotation으로 강제 전환
+  const sel = document.getElementById("overlaySelect");
+  if (sel && sel.value !== overlayFile) {
+    sel.value = overlayFile;
+    applyOverlaySelection(); // 로드 시 onloadedmetadata에서 동기화됨
+  }
+
+  // 시간 맞추기
+  video.currentTime = tSec;
+  trySyncOverlayVideo();
+
+  // 양쪽 모두 seek 안정화 대기
+  try {
+    await Promise.race([
+      waitEvent(video, "seeked", 1200),
+      waitEvent(video, "timeupdate", 1200)
+    ]);
+  } catch { /* ignore */ }
+
+  if (state.overlayVid?.src) {
+    try {
+      state.overlayVid.currentTime = tSec;
+      await Promise.race([
+        waitEvent(state.overlayVid, "seeked", 1200),
+        waitEvent(state.overlayVid, "timeupdate", 1200)
+      ]);
+    } catch { /* ignore */ }
+  }
+}
+
+async function captureCompositePNG() {
+  const video = state.video;
+  const overlay = state.overlayVid;
+  if (!video) throw new Error("video 없음");
+
+  // 화면 크기대로 캔버스 생성
+  const rect = video.getBoundingClientRect();
+  const w = Math.max(1, Math.floor(rect.width));
+  const h = Math.max(1, Math.floor(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+
+  const off = document.createElement("canvas");
+  off.width = Math.floor(w * dpr);
+  off.height = Math.floor(h * dpr);
+  const ctx = off.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // 본편 그리기
+  ctx.drawImage(video, 0, 0, w, h);
+
+  // 오버레이 비디오가 있으면 합성
+  if (overlay && overlay.src && overlay.readyState >= 2) {
+    // mix-blend-mode은 CSS 합성이므로 캔버스에서는 흉내만 가능 — 여기선 단순 'screen' 유사 합성으로 처리
+    // 간단 구현: 오버레이를 그대로 그리되 전체 투명도는 현재 스타일을 반영
+    const opacity = Number((overlay.style.opacity || "0.7"));
+    if (opacity > 0) {
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.drawImage(overlay, 0, 0, w, h);
+      ctx.restore();
+    }
+  }
+
+  // 라벨
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.7)";
+  ctx.fillRect(8, 8, 190, 30);
+  ctx.fillStyle = "#fff";
+  ctx.font = "14px system-ui, sans-serif";
+  ctx.fillText(`snapshot @ ${video.currentTime.toFixed(3)}s`, 16, 28);
+  ctx.restore();
+
+  return off.toDataURL("image/png");
+}
+
+// ================== 스냅샷 프리뷰 UI ==================
+function wirePreviewControls() {
+  const btn = document.getElementById("btnSavePng");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (!state.lastSnapshot?.dataUrl) return;
+    const a = document.createElement("a");
+    const t = state.lastSnapshot.t?.toFixed(3) ?? "time";
+    const { playerId, reportId } = state.current;
+    a.href = state.lastSnapshot.dataUrl;
+    a.download = `${playerId || "player"}_${reportId || "report"}_${t}s.png`;
+    a.click();
+  });
+}
+function setPreview(dataUrl, t, frame) {
+  const img = document.getElementById("framePreview");
+  const meta = document.getElementById("previewMeta");
+  if (!img || !meta) return;
+
+  if (!dataUrl) {
+    img.removeAttribute("src");
+    meta.textContent = "-";
+    state.lastSnapshot = null;
+    return;
+  }
+  img.src = dataUrl;
+  meta.textContent = `t=${t.toFixed(3)}s, frame=${frame}`;
+  state.lastSnapshot = { dataUrl, t, frame };
+}
+
+// ================== 차트 커서용 도우미 (위에서 사용) ==================
+// (이미 위에 구현)
+
+// ================== 보조: 기존 코드 호환을 위한 빈 훅 ==================
+// 필요 시 스켈레톤/헤드/핸드 Path 토글과 연결
+

@@ -35,7 +35,6 @@
     <section class="player-box">
       <div class="video-wrap" id="videoWrap">
         <video id="player" controls playsinline preload="metadata" crossorigin="anonymous"></video>
-
         <video id="overlayVid" playsinline muted preload="metadata" crossorigin="anonymous"></video>
         <canvas id="overlay"></canvas>
       </div>
@@ -58,7 +57,9 @@
               <option value="shoulder_hip_rotation.mp4">Shoulder-Hip Rotation</option>
             </select>
           </label>
-          <label style="margin-left:8px;">Opacity <input id="overlayOpacity" type="range" min="0" max="100" value="70"></label>
+          <label style="margin-left:8px;">Opacity
+            <input id="overlayOpacity" type="range" min="0" max="100" value="70">
+          </label>
           <label style="margin-left:8px;">Blend
             <select id="overlayBlend">
               <option value="screen" selected>screen</option>
@@ -79,13 +80,24 @@
 
         <input id="seek" type="range" min="0" max="1000" value="0" />
       </div>
+
+      <!-- 📸 그래프 클릭 시 캡처 프리뷰 -->
+      <div class="frame-preview">
+        <div class="frame-preview-head">
+          <strong>Snapshot @ <span id="previewMeta">-</span></strong>
+          <button id="btnSavePng" class="btn">PNG 저장</button>
+        </div>
+        <img id="framePreview" alt="frame preview" />
+      </div>
     </section>
 
+    <!-- 각도 차트 -->
     <section class="charts">
       <h2>Angles</h2>
       <canvas id="chart-angles"></canvas>
     </section>
 
+    <!-- 원본 JSON 보기 -->
     <section class="raw">
       <details>
         <summary>summary.json</summary>

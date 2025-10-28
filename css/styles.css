@@ -18,63 +18,90 @@ body{
 }
 
 .topbar{
-  height:56px; display:flex; align-items:center;
-  padding:0 16px; border-bottom:1px solid var(--border); background:var(--panel);
+  height:56px;
+  display:flex;
+  align-items:center;
+  padding:0 16px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel);
 }
 .topbar h1{font-size:16px; margin:0}
 
 .sidebar{
-  position:fixed; top:56px; left:0; bottom:0; width:300px;
-  border-right:1px solid var(--border); background:var(--panel); overflow:auto;
+  position:fixed;
+  top:56px;
+  left:0;
+  bottom:0;
+  width:300px;
+  border-right:1px solid var(--border);
+  background:var(--panel);
+  overflow:auto;
 }
 .sidebar-header{padding:12px 14px; border-bottom:1px solid var(--border);}
 .report-list{padding:8px}
 .report-item{
-  padding:10px 12px; border:1px solid transparent; border-radius:8px; margin-bottom:8px;
-  background:transparent; cursor:pointer;
+  padding:10px 12px;
+  border:1px solid transparent;
+  border-radius:8px;
+  margin-bottom:8px;
+  background:transparent;
+  cursor:pointer;
 }
 .report-item:hover{border-color:var(--border); background:#141720}
 
 .content{
-  margin-left:300px; padding:16px; min-height:calc(100% - 56px);
+  margin-left:300px;
+  padding:16px;
+  min-height:calc(100% - 56px);
 }
 
 .cards{
-  display:grid; gap:12px; grid-template-columns: repeat(7, minmax(0, 1fr));
+  display:grid;
+  gap:12px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   margin-bottom:16px;
 }
 .card{
-  background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
 }
 .card .label{color:var(--muted); font-size:12px}
 .card .value{font-size:18px; margin-top:4px}
 
 .player-box{
-  background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+  margin-bottom:16px;
 }
 
 /* === 비디오 컨테이너: 본편 메타데이터로 aspect-ratio 고정 === */
 .video-wrap{
-  position:relative; width:100%; max-width:100%; background:#000; border-radius:8px; overflow:hidden;
+  position:relative;
+  width:100%;
+  max-width:100%;
+  background:#000;
+  border-radius:8px;
+  overflow:hidden;
   aspect-ratio: var(--video-aspect, 16/9);
 }
 
 /* 같은 박스에 100%로 겹치기 */
-#player,
-#overlayVid,
-#overlay{
-  position:absolute; left:0; top:0; width:100%; height:100%;
+#player, #overlayVid, #overlay{
+  position:absolute;
+  left:0; top:0;
+  width:100%; height:100%;
 }
-
 #player{
   position:relative;
   display:block;
-  width:100%;
-  height:100%;
+  width:100%; height:100%;
   object-fit:contain;
   background:#000;
 }
-
 #overlayVid{
   pointer-events:none;
   object-fit:contain;
@@ -82,95 +109,96 @@ body{
   opacity:.7;
   display:none;
 }
-
 #overlay{ pointer-events:none; }
 
-.controls{display:flex; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap}
+.controls{
+  display:flex; align-items:center; gap:12px; margin-top:8px; flex-wrap:wrap
+}
 .toggles label{margin-right:12px; user-select:none}
 .overlay-select select{margin-left:4px}
-.playback select{margin-left:4px} /* ▶ 재생 속도 UI */
+.playback select{margin-left:4px}
+
+/* ▶ 재생 속도 UI */
+.playback { display: flex; align-items: center; gap: 4px; }
+.speed-label { color: var(--muted); margin-right: 4px; font-size: 13px; }
+.rate-btn {
+  background: #1c1f29; color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px;
+  cursor: pointer; font-size: 13px;
+  transition: all .2s ease;
+}
+.rate-btn:hover { background: #2a2f3a; }
+.rate-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
 #seek{width:100%}
 
-.charts{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:16px;}
+/* 차트 */
+.charts{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+  margin-bottom:16px;
+}
 .charts h2{margin:0 0 8px 0; font-size:16px}
 .charts canvas{width:100%; height:280px}
 
+/* 원본 JSON */
 .raw details{margin:8px 0}
-.raw pre{background:#0f1117; color:#d1d5db; border:1px solid var(--border); padding:12px; border-radius:8px; overflow:auto}
+.raw pre{
+  background:#0f1117; color:#d1d5db;
+  border:1px solid var(--border); padding:12px;
+  border-radius:8px; overflow:auto
+}
 
 /* 그룹(팀/플레이어) 접힘 스타일 */
 .team-group, .player-group {
-  margin: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #141720;
+  margin: 6px 8px; border: 1px solid var(--border);
+  border-radius: 8px; background: #141720;
 }
 .team-group > summary, .player-group > summary {
-  cursor: pointer;
-  padding: 8px 10px;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  cursor: pointer; padding: 8px 10px; list-style: none;
+  display: flex; align-items: center; justify-content: space-between;
 }
 .team-group > summary::-webkit-details-marker,
 .player-group > summary::-webkit-details-marker { display: none; }
-
 .group-title { font-weight: 600; }
 .group-count {
-  font-size: 12px;
-  color: var(--muted);
-  background: #11151f;
-  border: 1px solid var(--border);
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-left: 8px;
+  font-size: 12px; color: var(--muted);
+  background: #11151f; border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 999px; margin-left: 8px;
 }
-
-.player-group .report-items {
-  padding: 6px 8px 10px 8px;
-}
+.player-group .report-items { padding: 6px 8px 10px 8px; }
 .player-group .report-item {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  margin: 6px 0;
-  padding: 8px 10px;
-  cursor: pointer;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 8px; margin: 6px 0; padding: 8px 10px; cursor: pointer;
 }
-.player-group .report-item:hover {
-  border-color: var(--border);
-  background: #0f131c;
-}
+.player-group .report-item:hover { border-color: var(--border); background: #0f131c; }
 
-/* 🎯 재생 속도 버튼 스타일 */
-.playback {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* 📸 프레임 프리뷰 */
+.frame-preview{
+  margin-top:12px;
+  background:#0f1117;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px;
 }
-
-.speed-label {
-  color: var(--muted);
-  margin-right: 4px;
-  font-size: 13px;
+.frame-preview-head{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
 }
-
-.rate-btn {
-  background: #1c1f29;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all .2s ease;
+.frame-preview img{
+  width:100%;
+  max-height:360px;
+  object-fit:contain;
+  background:#000;
+  border-radius:8px;
+  display:block;
 }
-.rate-btn:hover {
-  background: #2a2f3a;
+.btn{
+  background:#1c1f29; color:var(--text);
+  border:1px solid var(--border);
+  border-radius:6px; padding:6px 10px;
+  cursor:pointer; font-size:13px;
 }
-.rate-btn.active {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
-}
+.btn:hover{ background:#2a2f3a; }
