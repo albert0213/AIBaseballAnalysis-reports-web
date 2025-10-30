@@ -1,0 +1,38 @@
+{
+  "swing_type": null,
+  "head_stability": "3.3",
+  "impact_weight_front": "4.9",
+  "impact_weight_rear": "5.1",
+  "impact_frame": 228,
+  "shoulder_takeback_deg": null,
+  "pelvis_takeback_deg": null,
+  "shoulder_impact_deg": null,
+  "pelvis_impact_deg": null,
+  "shoulder_follow_deg": null,
+  "pelvis_follow_deg": null,
+  "separation_deg": "47.1",
+  "opening_deg": "34.5",
+  "stride_cm": null,
+  "custom_label1": null,
+  "custom_data1": null,
+  "custom_label2": null,
+  "custom_data2": null,
+  "overlays": {
+    "skeleton": true,
+    "hand_trace": true,
+    "head_stability": true,
+    "center_shift": true,
+    "shoulder_hip_rotation": true
+  },
+  "assets": {
+    "report_video": null
+  },
+  "created_at": "2025-10-29T21:13:10",
+  "player_id": "1025",
+  "report_id": "5_20251029",
+  "opening_frame_index": 228,
+  "opening_frame_number": 229,
+  "bat_side": "R",
+  "opening_wrist_key": "left_wrist",
+  "analysis_type": "batting"
+}
